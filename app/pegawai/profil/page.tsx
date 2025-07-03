@@ -153,9 +153,6 @@ export default function ProfilPage() {
           jabatan: updatedData.jabatan || prev.jabatan,
           jenisJabatan: updatedData.jenisJabatan || prev.jenisJabatan,
           perangkatDaerah: updatedData.unitKerja || prev.perangkatDaerah,
-          pendidikan: updatedData.pendidikan || prev.pendidikan,
-          jurusan: updatedData.jurusan || prev.jurusan,
-          tahunLulus: updatedData.tahunLulus || prev.tahunLulus,
         }))
       } else {
         const errorData = await response.json();
@@ -424,56 +421,6 @@ export default function ProfilPage() {
                           <SelectItem value="Fungsional">Fungsional</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Education Information */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 border-b pb-2">Informasi Pendidikan</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="pendidikan">Pendidikan Terakhir</Label>
-                      <Select
-                        value={profileData.pendidikan}
-                        onValueChange={(value) => setProfileData({ ...profileData, pendidikan: value })}
-                        disabled={!isEditing}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="SD">SD</SelectItem>
-                          <SelectItem value="SMP">SMP</SelectItem>
-                          <SelectItem value="SMA/K">SMA/K</SelectItem>
-                          <SelectItem value="D1">D1</SelectItem>
-                          <SelectItem value="D2">D2</SelectItem>
-                          <SelectItem value="D3">D3</SelectItem>
-                          <SelectItem value="D4/S1">D4/S1</SelectItem>
-                          <SelectItem value="S2">S2</SelectItem>
-                          <SelectItem value="S3">S3</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="jurusan">Jurusan</Label>
-                      <Input
-                        id="jurusan"
-                        value={profileData.jurusan}
-                        onChange={(e) => setProfileData({ ...profileData, jurusan: e.target.value })}
-                        disabled={!isEditing}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="tahunLulus">Tahun Lulus</Label>
-                      <Input
-                        id="tahunLulus"
-                        value={profileData.tahunLulus}
-                        onChange={(e) => setProfileData({ ...profileData, tahunLulus: e.target.value })}
-                        disabled={!isEditing}
-                      />
                     </div>
                   </div>
                 </div>

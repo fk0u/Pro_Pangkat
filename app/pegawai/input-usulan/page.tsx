@@ -43,7 +43,6 @@ export default function InputUsulanPage() {
     tmtPangkat: "", // Tambah field TMT Pangkat
     jabatan: "",
     jenisJabatan: "",
-    pendidikan: "",
     tahunLulus: "",
     nomorSurat: "",
     tanggalSurat: "",
@@ -796,30 +795,12 @@ export default function InputUsulanPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pendidikan">Pendidikan Terakhir *</Label>
-                      <Select
-                        value={formData.pendidikan}
-                        onValueChange={(value) => setFormData({ ...formData, pendidikan: value })}
-                        required
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih pendidikan terakhir" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="D4/S1">D4/S1</SelectItem>
-                          <SelectItem value="S2">S2</SelectItem>
-                          <SelectItem value="S3">S3</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tahunLulus">Tahun Lulus *</Label>
+                      <Label htmlFor="tahunLulus">Tahun Lulus</Label>
                       <Input
                         id="tahunLulus"
                         placeholder="Tahun lulus pendidikan terakhir"
                         value={formData.tahunLulus}
                         onChange={(e) => setFormData({ ...formData, tahunLulus: e.target.value })}
-                        required
                       />
                     </div>
                     <div className="space-y-2">
