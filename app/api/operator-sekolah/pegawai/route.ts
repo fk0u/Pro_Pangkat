@@ -1,0 +1,202 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { hashPassword } from '@/lib/password'
+import { z } from 'zod'
+
+const createPegawaiSchema = z.object({
+  nip: z.string().min(1, "NIP is required"),
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email").optional(),
+  password: z.string().min(6, "Password minimal 6 karakter").optional(),
+  golongan: z.string().optional(),
+  tmtGolongan: z.string().optional(),
+  jabatan: z.string().optional(),
+  jenisJabatan: z.string().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+})
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getSession()
+    
+    if (!session.isLoggedIn || session.user?.role !== 'OPERATOR_SEKOLAH') {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user's unit kerja for filtering
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { unitKerja: true }
+    })
+
+    if (!user?.unitKerja) {
+      return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
+    }
+
+    // Get search params for pagination and filtering
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search') || ''
+    const page = parseInt(url.searchParams.get('page') || '1')
+    const limit = parseInt(url.searchParams.get('limit') || '10')
+    const offset = (page - 1) * limit
+
+    // Build where clause
+    const whereClause = {
+      role: "PEGAWAI" as const,
+      unitKerja: user.unitKerja,
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { nip: { contains: search, mode: 'insensitive' as const } },
+          { jabatan: { contains: search, mode: 'insensitive' as const } },
+        ]
+      })
+    }
+
+    // Get all pegawai in the same unit kerja with pagination
+    const [pegawai, totalCount] = await Promise.all([
+      prisma.user.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          nip: true,
+          name: true,
+          email: true,
+          golongan: true,
+          tmtGolongan: true,
+          jabatan: true,
+          jenisJabatan: true,
+          phone: true,
+          address: true,
+          unitKerja: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.user.count({
+        where: whereClause
+      })
+    ])
+
+    const totalPages = Math.ceil(totalCount / limit)
+
+    return NextResponse.json({
+      data: pegawai,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+      unitKerja: user.unitKerja,
+    })
+  } catch (error) {
+    console.error('Pegawai API error:', error)
+    return NextResponse.json(
+      { message: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession()
+    
+    if (!session.isLoggedIn || session.user?.role !== 'OPERATOR_SEKOLAH') {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const parsed = createPegawaiSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { message: "Invalid input", errors: parsed.error.errors },
+        { status: 400 }
+      )
+    }
+
+    const { password, tmtGolongan, ...data } = parsed.data
+
+    // Get user's unit kerja
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { unitKerja: true, wilayah: true }
+    })
+
+    if (!user?.unitKerja) {
+      return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
+    }
+
+    // Check if NIP already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { nip: data.nip }
+    })
+
+    if (existingUser) {
+      return NextResponse.json({ message: 'NIP sudah terdaftar' }, { status: 409 })
+    }
+
+    // Hash password - use provided password or default to NIP
+    const defaultPassword = password || data.nip
+    const hashedPassword = await hashPassword(defaultPassword)
+
+    // Create new pegawai
+    const newPegawai = await prisma.user.create({
+      data: {
+        ...data,
+        password: hashedPassword,
+        role: 'PEGAWAI',
+        unitKerja: user.unitKerja,
+        wilayah: user.wilayah,
+        tmtGolongan: tmtGolongan ? new Date(tmtGolongan) : null,
+        mustChangePassword: true
+      },
+      select: {
+        id: true,
+        nip: true,
+        name: true,
+        email: true,
+        golongan: true,
+        tmtGolongan: true,
+        jabatan: true,
+        jenisJabatan: true,
+        phone: true,
+        address: true,
+        unitKerja: true,
+        createdAt: true
+      }
+    })
+
+    // Log activity
+    await prisma.activityLog.create({
+      data: {
+        action: "CREATE_PEGAWAI",
+        details: {
+          pegawaiId: newPegawai.id,
+          pegawaiName: newPegawai.name,
+          pegawaiNip: newPegawai.nip,
+        },
+        userId: session.user.id,
+      }
+    })
+
+    return NextResponse.json({ 
+      message: 'Pegawai berhasil ditambahkan',
+      pegawai: newPegawai 
+    }, { status: 201 })
+  } catch (error) {
+    console.error('Create pegawai error:', error)
+    return NextResponse.json(
+      { message: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
