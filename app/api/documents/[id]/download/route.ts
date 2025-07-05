@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { readFile } from "fs/promises"
 import { join } from "path"
+import { logDocumentActivity } from "@/lib/activity-logger"
 
 export async function GET(
   request: NextRequest,
@@ -22,8 +23,15 @@ export async function GET(
         proposal: {
           include: {
             pegawai: {
-              select: { id: true }
+              select: { id: true, name: true, nip: true }
             }
+          }
+        },
+        documentRequirement: {
+          select: { 
+            id: true, 
+            name: true, 
+            code: true 
           }
         }
       }
@@ -66,6 +74,21 @@ export async function GET(
           contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
           break
       }
+
+      // Log document view activity
+      await logDocumentActivity('VIEW', document.id, session, {
+        proposalId: document.proposalId,
+        fileName: document.fileName,
+        fileType: contentType,
+        fileSize: document.fileSize,
+        documentName: document.documentRequirement?.name || 'Dokumen',
+        documentCode: document.documentRequirement?.code || '',
+        pegawaiName: document.proposal.pegawai.name,
+        pegawaiNip: document.proposal.pegawai.nip,
+        viewedBy: session.user?.role,
+        viewerId: session.user?.id,
+        action: 'DOWNLOAD'
+      })
 
       return new NextResponse(fileBuffer, {
         headers: {

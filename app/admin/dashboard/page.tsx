@@ -11,6 +11,34 @@ import { FileText, CheckCircle, AlertTriangle, Users, Bell, Settings, BarChart3,
 import { useRouter } from "next/navigation"
 import type { DashboardStats } from "@/lib/types"
 
+// Helper function to safely render activity details
+const getActivityDetails = (details: any): string => {
+  if (!details) return "";
+  
+  // If it's already a string, return it
+  if (typeof details === "string") return details;
+  
+  // If it's an object, convert it to a readable string
+  if (typeof details === "object") {
+    try {
+      // If it has reason property, return that
+      if (details.reason) return details.reason;
+      
+      // Otherwise, create a simple summary
+      const keys = Object.keys(details);
+      if (keys.length === 0) return "";
+      
+      return `Details: ${keys.map(k => `${k}: ${typeof details[k] === 'object' ? JSON.stringify(details[k]) : details[k]}`).join(", ")}`;
+    } catch (e) {
+      console.error("Error formatting activity details:", e);
+      return "Activity details";
+    }
+  }
+  
+  // Fallback
+  return String(details);
+};
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [userData, setUserData] = useState<any>(null)
@@ -162,7 +190,7 @@ export default function AdminDashboardPage() {
       <div className="space-y-6">
         {/* Welcome Section */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-2xl p-6 text-white">
+          <div className="bg-gradient-to-r from-red-700 to-rose-600 rounded-2xl p-6 text-white">
             <h1 className="text-2xl font-bold mb-2">
               Dashboard Administrator - {userData?.user?.name || "Loading..."}
             </h1>
@@ -301,7 +329,7 @@ export default function AdminDashboardPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">{activity.action}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">{activity.details}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">{getActivityDetails(activity.details)}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-500">
                         {activity.userName} • {new Date(activity.createdAt).toLocaleDateString("id-ID")}
                       </p>

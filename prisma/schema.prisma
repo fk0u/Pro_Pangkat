@@ -298,3 +298,15 @@ model Notification {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model SystemSetting {
+  category    String
+  key         String
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([category, key])
+  @@index([category])
+}

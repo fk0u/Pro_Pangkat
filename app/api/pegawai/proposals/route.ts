@@ -137,32 +137,40 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
+    console.log("Create proposal request body:", body);
+    
+    // Allow formData field to pass through validation
     const parsed = createProposalSchema.safeParse(body)
 
     if (!parsed.success) {
+      console.error("Validation failed:", parsed.error.errors);
       return NextResponse.json({ message: "Invalid input", errors: parsed.error.errors }, { status: 400 })
     }
 
-    // Cek apakah sudah ada proposal dengan status DRAFT atau sedang diproses
-    const existingProposal = await prisma.promotionProposal.findFirst({
-      where: {
-        pegawaiId: session.user.id,
-        status: {
-          in: ["DRAFT", "DIAJUKAN", "DIPROSES_OPERATOR", "DIPROSES_ADMIN", "MENUNGGU_VERIFIKASI_DINAS", "MENUNGGU_VERIFIKASI_SEKOLAH"]
+    // In production, check for existing proposals
+    if (process.env.NODE_ENV === 'production') {
+      // Cek apakah sudah ada proposal dengan status DRAFT atau sedang diproses
+      const existingProposal = await prisma.promotionProposal.findFirst({
+        where: {
+          pegawaiId: session.user.id,
+          status: {
+            in: ["DRAFT", "DIAJUKAN", "DIPROSES_OPERATOR", "DIPROSES_ADMIN", "MENUNGGU_VERIFIKASI_DINAS", "MENUNGGU_VERIFIKASI_SEKOLAH"]
+          }
         }
-      }
-    })
+      })
 
-    if (existingProposal) {
-      return NextResponse.json({ 
-        message: "Anda masih memiliki proposal yang sedang diproses. Tidak dapat membuat proposal baru." 
-      }, { status: 400 })
+      if (existingProposal) {
+        return NextResponse.json({ 
+          message: "Anda masih memiliki proposal yang sedang diproses. Tidak dapat membuat proposal baru." 
+        }, { status: 400 })
+      }
     }
 
+    // Create the proposal
     const proposal = await prisma.promotionProposal.create({
       data: {
         periode: parsed.data.periode,
-        notes: parsed.data.notes,
+        notes: parsed.data.notes || `Usulan kenaikan pangkat untuk periode ${parsed.data.periode}`,
         pegawaiId: session.user.id,
         status: "DRAFT",
       },
@@ -184,6 +192,8 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    console.log("Proposal created successfully:", proposal.id);
+
     // Log activity
     await prisma.activityLog.create({
       data: {
@@ -196,6 +206,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(proposal, { status: 201 })
   } catch (error) {
     console.error("Error creating proposal:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    
+    // Provide more detailed error message
+    let errorMessage = "Internal server error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
+    return NextResponse.json({ 
+      message: errorMessage,
+      detail: "Failed to create proposal. Please check the data you provided."
+    }, { status: 500 })
   }
 }

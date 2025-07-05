@@ -21,7 +21,6 @@ import {
   BarChart3,
   Bell,
   FolderOpen,
-  UserPlus,
   School,
 } from "lucide-react"
 import Link from "next/link"
@@ -97,12 +96,11 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
         return [
           { title: "Dashboard", url: "/admin/dashboard", icon: Home },
           { title: "Manajemen Pengguna", url: "/admin/users", icon: Users },
-          { title: "Impor Pengguna", url: "/admin/users/import", icon: UserPlus },
           { title: "Role & Hak Akses", url: "/admin/roles", icon: Shield },
           { title: "Jadwal", url: "/admin/timeline", icon: Calendar },
           { title: "Inbox Usulan", url: "/admin/inbox", icon: Mail },
-          { title: "Kelola Usulan", url: "/admin/documents", icon: FolderOpen },
-          { title: "Log Aktivitas", url: "/admin/logs", icon: Activity },
+          { title: "Kelola Usulan", url: "/admin/kelola-usulan", icon: FolderOpen },
+          { title: "Log Aktivitas", url: "/admin/activity-logs", icon: Activity },
           { title: "Laporan & Export", url: "/admin/reports", icon: BarChart3 },
           { title: "Notifikasi Global", url: "/admin/notifications", icon: Bell },
           { title: "Pengaturan Sistem", url: "/admin/settings", icon: Settings },
@@ -114,6 +112,7 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
           { title: "Inbox Usulan", url: "/operator/inbox", icon: Mail },
           { title: "Unit Kerja", url: "/operator/unit-kerja", icon: School },
           { title: "List Pegawai", url: "/operator/pegawai", icon: Users },
+          { title: "Laporan & Export", url: "/operator/reports", icon: BarChart3 },
         ]
       case "operator-sekolah":
         return [

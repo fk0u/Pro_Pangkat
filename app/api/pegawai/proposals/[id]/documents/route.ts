@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import { z } from "zod"
+import { logDocumentActivity } from "@/lib/activity-logger"
 
 const uploadDocumentSchema = z.object({
   documentRequirementId: z.string().min(1, "Document requirement ID is required"),
@@ -23,18 +24,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         id: params.id,
         pegawaiId: session.user.id,
       },
+      include: {
+        pegawai: {
+          select: {
+            name: true,
+            nip: true
+          }
+        }
+      }
     })
 
     if (!proposal) {
       return NextResponse.json({ message: "Proposal not found" }, { status: 404 })
     }
 
-    // Check if proposal can be updated
-    if (proposal.status !== "DRAFT" && proposal.status !== "DIKEMBALIKAN_OPERATOR") {
-      return NextResponse.json({ message: "Documents cannot be uploaded in current proposal status" }, { status: 400 })
+    // In development mode, be more lenient with status checks
+    if (process.env.NODE_ENV === 'production') {
+      // Check if proposal can be updated
+      if (proposal.status !== "DRAFT" && 
+          proposal.status !== "DIKEMBALIKAN_OPERATOR" && 
+          proposal.status !== "PERLU_PERBAIKAN_DARI_SEKOLAH" && 
+          proposal.status !== "PERLU_PERBAIKAN_DARI_DINAS") {
+        return NextResponse.json({ message: "Documents cannot be uploaded in current proposal status" }, { status: 400 })
+      }
     }
 
     const formData = await req.formData()
+    console.log("Document upload formData keys:", Array.from(formData.keys()));
+    
     const file = formData.get("file") as File
     const documentRequirementId = formData.get("documentRequirementId") as string
 
@@ -42,8 +59,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ message: "No file uploaded" }, { status: 400 })
     }
 
+    console.log("Uploading file:", file.name, "size:", file.size, "type:", file.type);
+    console.log("Document requirement ID:", documentRequirementId);
+
     const parsed = uploadDocumentSchema.safeParse({ documentRequirementId })
     if (!parsed.success) {
+      console.error("Validation failed:", parsed.error.errors);
       return NextResponse.json({ message: "Invalid input", errors: parsed.error.errors }, { status: 400 })
     }
 
@@ -62,6 +83,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ message: "File size too large. Maximum 10MB allowed." }, { status: 400 })
     }
 
+    // Get document requirement info for logging
+    const documentRequirement = await prisma.documentRequirement.findUnique({
+      where: { id: documentRequirementId },
+      select: { name: true, code: true }
+    })
+
     // Create upload directory if it doesn't exist
     const uploadDir = join(process.cwd(), "uploads", "documents")
     await mkdir(uploadDir, { recursive: true })
@@ -76,6 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     await writeFile(filepath, buffer)
+    console.log("File saved to:", filepath);
 
     // Check if document already exists for this requirement
     const existingDocument = await prisma.proposalDocument.findUnique({
@@ -103,6 +131,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           documentRequirement: true,
         },
       })
+      console.log("Updated existing document:", document.id);
     } else {
       // Create new document
       document = await prisma.proposalDocument.create({
@@ -118,25 +147,36 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           documentRequirement: true,
         },
       })
+      console.log("Created new document:", document.id);
     }
 
-    // Log activity
-    await prisma.activityLog.create({
-      data: {
-        action: "UPLOAD_DOCUMENT",
-        details: {
-          proposalId: params.id,
-          documentId: document.id,
-          fileName: file.name,
-        },
-        userId: session.user.id,
-      },
+    // Log activity using our activity logger
+    await logDocumentActivity('UPLOAD', document.id, session, {
+      proposalId: params.id,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      documentName: documentRequirement?.name || 'Dokumen',
+      documentCode: documentRequirement?.code || '',
+      pegawaiName: proposal.pegawai.name,
+      pegawaiNip: proposal.pegawai.nip,
+      action: existingDocument ? 'UPDATED' : 'CREATED'
     })
 
     return NextResponse.json(document, { status: 201 })
   } catch (error) {
     console.error("Error uploading document:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    
+    // Provide more detailed error message
+    let errorMessage = "Internal server error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
+    return NextResponse.json({ 
+      message: errorMessage,
+      detail: "Failed to upload document. Please check the file and try again."
+    }, { status: 500 })
   }
 }
 

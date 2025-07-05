@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { StatusProposal } from '@prisma/client'
+import { logProposalActivity } from '@/lib/activity-logger'
 
 export async function GET(
   request: NextRequest,
@@ -27,18 +28,46 @@ export async function GET(
             nip: true,
             jabatan: true,
             golongan: true,
-            unitKerja: true,
-            wilayah: true
+            email: true,
+            currentRank: true,
+            targetRank: true,
+            unitKerja: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                code: true,
+                wilayah: {
+                  select: {
+                    id: true,
+                    name: true,
+                    type: true
+                  }
+                }
+              }
+            }
           }
         },
         documents: {
           include: {
             documentRequirement: {
               select: {
+                id: true,
                 name: true,
-                code: true
+                code: true,
+                description: true,
+                required: true
               }
             }
+          }
+        },
+        timeline: {
+          select: {
+            id: true,
+            title: true,
+            startDate: true,
+            endDate: true,
+            description: true
           }
         }
       }
@@ -60,28 +89,56 @@ export async function GET(
       'IV/c': 'IV/d',
       'IV/d': 'IV/e',
     }
-    const golonganTujuan = golonganMap[currentGolongan] || 'IV/a'
+    const golonganTujuan = usulan.pegawai.targetRank || golonganMap[currentGolongan] || 'IV/a'
+
+    // Format unitKerja data
+    const unitKerjaData = usulan.pegawai.unitKerja ? {
+      id: usulan.pegawai.unitKerja.id,
+      name: usulan.pegawai.unitKerja.name,
+      type: usulan.pegawai.unitKerja.type,
+      code: usulan.pegawai.unitKerja.code,
+      wilayah: usulan.pegawai.unitKerja.wilayah ? {
+        id: usulan.pegawai.unitKerja.wilayah.id,
+        name: usulan.pegawai.unitKerja.wilayah.name,
+        type: usulan.pegawai.unitKerja.wilayah.type
+      } : null
+    } : null;
 
     const formattedUsulan = {
       id: usulan.id,
-      pegawai: usulan.pegawai,
-      golonganAsal: currentGolongan,
+      pegawai: {
+        ...usulan.pegawai,
+        unitKerja: unitKerjaData
+      },
+      golonganAsal: usulan.pegawai.currentRank || currentGolongan,
       golonganTujuan: golonganTujuan,
       periode: usulan.periode,
       status: usulan.status,
       tanggalAjukan: usulan.createdAt.toISOString().split('T')[0],
       tanggalUpdate: usulan.updatedAt.toISOString().split('T')[0],
+      submissionDate: usulan.submissionDate?.toISOString().split('T')[0] || null,
       keterangan: usulan.notes || '',
       documents: usulan.documents.map(doc => ({
         id: doc.id,
-        name: doc.documentRequirement.name,
-        code: doc.documentRequirement.code,
-        fileName: doc.fileName,
+        name: doc.documentRequirement?.name || doc.name || 'Dokumen',
+        code: doc.documentRequirement?.code || '',
+        description: doc.documentRequirement?.description || '',
+        required: doc.documentRequirement?.required || false,
+        fileName: doc.fileName || doc.name,
         fileUrl: doc.fileUrl,
+        fileType: doc.fileType,
+        fileSize: doc.fileSize,
         status: doc.status,
         notes: doc.notes,
-        uploadedAt: doc.uploadedAt.toISOString()
-      }))
+        uploadedAt: doc.uploadedAt?.toISOString() || doc.uploadDate?.toISOString() || null
+      })),
+      timeline: usulan.timeline ? {
+        id: usulan.timeline.id,
+        title: usulan.timeline.title,
+        startDate: usulan.timeline.startDate.toISOString().split('T')[0],
+        endDate: usulan.timeline.endDate.toISOString().split('T')[0],
+        description: usulan.timeline.description
+      } : null
     }
 
     return NextResponse.json({ usulan: formattedUsulan })
@@ -107,6 +164,11 @@ export async function PUT(
 
     const { id } = params
     const body = await request.json()
+    const { status, catatan } = body
+
+    if (!status) {
+      return NextResponse.json({ message: 'Missing required fields' }, { status: 400 })
+    }
 
     // Get user info
     const user = await prisma.user.findUnique({
@@ -118,12 +180,13 @@ export async function PUT(
       return NextResponse.json({ message: 'User not found' }, { status: 400 })
     }
 
-    // Check if usulan exists
-    const existingUsulan = await prisma.promotionProposal.findUnique({
+    // Check if proposal exists
+    const existingProposal = await prisma.promotionProposal.findUnique({
       where: { id },
       include: {
         pegawai: {
           select: {
+            id: true,
             name: true,
             nip: true
           }
@@ -131,95 +194,73 @@ export async function PUT(
       }
     })
 
-    if (!existingUsulan) {
+    if (!existingProposal) {
       return NextResponse.json({ message: 'Usulan not found' }, { status: 404 })
     }
 
-    // Check if this is an approval action
-    if (body.action && ['approve', 'reject'].includes(body.action)) {
-      const { action, notes } = body
+    // Define new notes
+    let newNotes = existingProposal.notes || ''
+    const timestamp = new Date().toISOString()
 
-      let newStatus: StatusProposal
-      let newNotes = existingUsulan.notes || ''
-      const timestamp = new Date().toISOString()
-
-      switch (action) {
-        case 'approve':
-          // WORKFLOW: Final approval by admin pusat
-          if (existingUsulan.status !== 'DIPROSES_ADMIN') {
-            return NextResponse.json({ 
-              message: 'Usulan tidak dapat disetujui dalam status ini' 
-            }, { status: 400 })
-          }
-          
-          newStatus = StatusProposal.SELESAI
-          newNotes += `\n[${timestamp}] Disetujui oleh admin pusat (${user.name}) - USULAN SELESAI`
-          if (notes) newNotes += `: ${notes}`
-          break
-
-        case 'reject':
-          // Final rejection by admin pusat
-          if (!['DIPROSES_ADMIN'].includes(existingUsulan.status)) {
-            return NextResponse.json({ 
-              message: 'Usulan tidak dapat ditolak dalam status ini' 
-            }, { status: 400 })
-          }
-          
-          newStatus = StatusProposal.DITOLAK_ADMIN
-          newNotes += `\n[${timestamp}] Ditolak oleh admin pusat (${user.name})`
-          if (notes) newNotes += `: ${notes}`
-          break
-
-        default:
-          return NextResponse.json({ message: 'Invalid action' }, { status: 400 })
-      }
-
-      // Update usulan status
-      const updatedUsulan = await prisma.promotionProposal.update({
-        where: { id },
-        data: {
-          status: newStatus,
-          notes: newNotes.trim(),
-        },
-        include: {
-          pegawai: {
-            select: {
-              name: true,
-              nip: true
-            }
-          }
-        }
-      })
-
-      // Log activity
-      await prisma.activityLog.create({
-        data: {
-          action: action.toUpperCase() + "_BY_ADMIN_PUSAT",
-          details: { 
-            usulanId: updatedUsulan.id,
-            fromStatus: existingUsulan.status,
-            toStatus: newStatus,
-            actionBy: 'admin_pusat',
-            adminName: user.name,
-            pegawaiName: updatedUsulan.pegawai.name,
-            notes: notes
-          },
-          userId: session.user.id,
-        },
-      })
-
-      return NextResponse.json({ 
-        message: `Usulan berhasil ${action === 'approve' ? 'disetujui - SELESAI' : 'ditolak'}`,
-        usulan: {
-          id: updatedUsulan.id,
-          status: updatedUsulan.status,
-          notes: updatedUsulan.notes
-        }
-      })
-
+    // Add notes about the action
+    if (status === 'DISETUJUI_ADMIN') {
+      newNotes += `\n[${timestamp}] Disetujui oleh admin ${user.name}`
+      if (catatan) newNotes += `: ${catatan}`
+    } else if (status === 'DITOLAK') {
+      newNotes += `\n[${timestamp}] Ditolak oleh admin ${user.name}`
+      if (catatan) newNotes += `: ${catatan}`
     } else {
-      return NextResponse.json({ message: 'Invalid action' }, { status: 400 })
+      newNotes += `\n[${timestamp}] Status diubah menjadi ${status} oleh admin ${user.name}`
+      if (catatan) newNotes += `: ${catatan}`
     }
+
+    // Update proposal status
+    const updatedProposal = await prisma.promotionProposal.update({
+      where: { id },
+      data: {
+        status: status as StatusProposal, // Use the imported type
+        notes: newNotes.trim(),
+      }
+    })
+
+    // Log activity using our activity logger
+    const actionType = status === 'DISETUJUI_ADMIN' ? 'APPROVE' : (status === 'DITOLAK' ? 'REJECT' : 'UPDATE')
+    await logProposalActivity(actionType, id, session, {
+      fromStatus: existingProposal.status,
+      toStatus: status,
+      actionBy: user.name,
+      pegawaiName: existingProposal.pegawai.name,
+      pegawaiId: existingProposal.pegawai.id,
+      notes: catatan || null,
+      details: {
+        proposalId: id,
+        previousStatus: existingProposal.status,
+        newStatus: status
+      }
+    })
+
+    // Create notification for the pegawai
+    await prisma.notification.create({
+      data: {
+        title: status === 'DISETUJUI_ADMIN' ? 'Usulan Disetujui' : 'Usulan Ditolak',
+        message: status === 'DISETUJUI_ADMIN' 
+          ? `Usulan kenaikan pangkat Anda telah disetujui oleh admin.` 
+          : `Usulan kenaikan pangkat Anda telah ditolak oleh admin.`,
+        type: status === 'DISETUJUI_ADMIN' ? 'success' : 'error',
+        userId: existingProposal.pegawaiId,
+        actionUrl: `/pegawai/usulan/${id}`,
+        actionLabel: 'Lihat Detail'
+      }
+    })
+
+    return NextResponse.json({ 
+      message: `Usulan berhasil ${status === 'DISETUJUI_ADMIN' ? 'disetujui' : 'ditolak'}`,
+      usulan: {
+        id: updatedProposal.id,
+        status: updatedProposal.status,
+        notes: updatedProposal.notes
+      }
+    })
   } catch (error) {
     console.error('Update usulan error:', error)
     return NextResponse.json(

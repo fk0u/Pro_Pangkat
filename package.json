@@ -13,7 +13,8 @@
     "db:sample": "tsx scripts/02-sample-data.ts",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "setup": "npm run db:generate && npm run db:migrate && npm run db:seed && npm run db:sample"
+    "setup": "npm run db:generate && npm run db:migrate && npm run db:seed && npm run db:sample",
+    "seed:doc-requirements": "tsx scripts/seed-document-requirements.ts"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
@@ -71,6 +72,7 @@
     "sonner": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
+    "ts-node": "^10.9.2",
     "vaul": "latest",
     "xlsx": "latest",
     "zod": "latest"

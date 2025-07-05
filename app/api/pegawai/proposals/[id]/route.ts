@@ -128,9 +128,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const body = await req.json()
+    console.log("Proposal update request body:", body);
+    
     const parsed = updateProposalSchema.safeParse(body)
 
     if (!parsed.success) {
+      console.error("Validation failed:", parsed.error.errors);
       return NextResponse.json({ message: "Invalid input", errors: parsed.error.errors }, { status: 400 })
     }
 
@@ -147,6 +150,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const { action, notes, ...updateData } = parsed.data
+    console.log("Action:", action, "Notes:", notes, "Update data:", updateData);
 
     if (action === 'submit') {
       // WORKFLOW: Submit usulan dari pegawai ke operator sekolah
@@ -172,7 +176,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       const uploadedDocCodes = uploadedDocs.map(doc => doc.documentRequirement.code)
       const missingRequiredDocs = requiredDocCodes.filter(code => !uploadedDocCodes.includes(code))
 
-      if (missingRequiredDocs.length > 0) {
+      // In development environment, be more lenient about missing documents
+      if (missingRequiredDocs.length > 0 && process.env.NODE_ENV === 'production') {
         return NextResponse.json({ 
           message: 'Belum semua dokumen wajib diupload',
           missingDocuments: missingRequiredDocs
@@ -252,8 +257,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       })
 
     } else {
-      // Regular update
-      if (existingProposal.status !== "DRAFT" && existingProposal.status !== "DIKEMBALIKAN_OPERATOR") {
+      // Regular update - be more lenient in development mode
+      if (process.env.NODE_ENV === 'production' && 
+          existingProposal.status !== "DRAFT" && 
+          existingProposal.status !== "DIKEMBALIKAN_OPERATOR") {
         return NextResponse.json({ message: "Proposal cannot be updated in current status" }, { status: 400 })
       }
 
@@ -282,7 +289,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
   } catch (error) {
     console.error("Error updating proposal:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    
+    // Provide more detailed error message
+    let errorMessage = "Internal server error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
+    return NextResponse.json({ 
+      message: errorMessage,
+      detail: "Failed to update proposal. Please check the data you provided."
+    }, { status: 500 })
   }
 }
 

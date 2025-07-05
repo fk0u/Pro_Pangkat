@@ -143,14 +143,40 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
         count: item._count,
         percentage: totalProposals > 0 ? Math.round((item._count / totalProposals) * 100) : 0,
       })),
-      recentActivities: recentActivities.map((activity) => ({
-        id: activity.id,
-        action: activity.action,
-        details: activity.details,
-        userName: activity.user.name,
-        userRole: activity.user.role,
-        createdAt: activity.createdAt,
-      })),
+      recentActivities: recentActivities.map((activity) => {
+        // Format activity details to ensure it's a string
+        let formattedDetails: string;
+        if (activity.details === null) {
+          formattedDetails = "";
+        } else if (typeof activity.details === "string") {
+          formattedDetails = activity.details;
+        } else {
+          try {
+            // Handle complex details object
+            const details = activity.details as any;
+            if (details.reason) {
+              formattedDetails = details.reason;
+            } else {
+              // Try to create a readable representation
+              formattedDetails = Object.keys(details)
+                .map(key => `${key}: ${typeof details[key] === 'object' ? JSON.stringify(details[key]) : details[key]}`)
+                .join(", ");
+            }
+          } catch (e) {
+            console.error("Error formatting activity details:", e);
+            formattedDetails = "Activity details";
+          }
+        }
+
+        return {
+          id: activity.id,
+          action: activity.action,
+          details: formattedDetails,
+          userName: activity.user.name,
+          userRole: activity.user.role,
+          createdAt: activity.createdAt,
+        };
+      }),
     }
 
     return createSuccessResponse(statistics)

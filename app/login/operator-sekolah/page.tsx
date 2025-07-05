@@ -86,9 +86,11 @@ export default function OperatorSekolahLoginPage() {
           transition={{ delay: 1.0, duration: 0.5 }}
           className="absolute bottom-5 left-1/2 transform -translate-x-1/2 z-10"
         >
-          <p className="text-purple-100 dark:text-gray-300 text-xs text-center font-medium">
-            © 2025 Dinas Pendidikan dan Kebudayaan Prov. Kaltim Kalimantan Timur
-          </p>
+          <div className="w-full justify-center text-center">
+            <p className="text-sky-100 dark:text-gray-300 text-xs font-medium">
+              © 2025 Dinas Pendidikan dan Kebudayaan Prov. Kaltim Kalimantan Timur
+            </p>
+          </div>
         </motion.footer>
       </div>
       <Toaster />

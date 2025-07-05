@@ -3,6 +3,34 @@
 import { motion } from "framer-motion"
 import { useSearchParams } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
+
+// Helper function to safely get string values from any type of data
+const safeGetString = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null) {
+    const obj = value as { nama?: string; name?: string; id?: string };
+    // Handle both nama/name properties and full UnitKerja objects
+    if (obj.nama) return obj.nama;
+    if (obj.name) return obj.name;
+    // If it seems to be a full object with more properties, stringify for debugging
+    // but in production return empty string to avoid crashes
+    if (Object.keys(obj).length > 5) {
+      console.log("Complex object found:", obj);
+      return process.env.NODE_ENV === 'production' ? "" : JSON.stringify(obj).slice(0, 30) + "...";
+    }
+    return "";
+  }
+  return String(value);
+}
+
+// Debug logging helper
+const debug = (message: string, data?: any) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[DEBUG] ${message}`, data);
+  }
+};
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,15 +40,16 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { FileText, User, Upload, Trash2, CheckCircle, Info, Search, AlertCircle, XCircle } from "lucide-react"
+import { FileText, User, Upload, Trash2, CheckCircle, Info, Search, AlertCircle, XCircle, Database } from "lucide-react"
 import { useState, useEffect } from "react"
 
 type DocumentRequirement = {
   id: string
   name: string
-  required: boolean
-  hasSimASN: boolean
   description: string
+  required: boolean
+  isRequired: boolean
+  hasSimASN: boolean
 }
 
 export default function InputUsulanPage() {
@@ -30,8 +59,37 @@ export default function InputUsulanPage() {
   const [activeTab, setActiveTab] = useState("detail-pegawai")
   const [isDetailComplete, setIsDetailComplete] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [userData, setUserData] = useState<any>(null)
-  const [existingProposal, setExistingProposal] = useState<any>(null)
+  const [userData, setUserData] = useState<{
+    nip?: string;
+    name?: string;
+    unitKerja?: string | { nama?: string };
+    unitKerjaId?: string;
+    golongan?: string;
+    tmtJabatan?: string;
+    jabatan?: string;
+    jenisJabatan?: string;
+  } | null>(null)
+  const [existingProposal, setExistingProposal] = useState<{
+    id: string;
+    periode?: string;
+    pegawai?: {
+      nip?: string;
+      name?: string;
+      unitKerja?: string | { nama?: string };
+      unitKerjaId?: string;
+      golongan?: string;
+      tmtJabatan?: string;
+      jabatan?: string;
+    };
+    documents?: Array<{
+      documentRequirement: { code: string };
+      fileUrl: string;
+      fileName: string;
+      status: string;
+      notes: string;
+      uploadedAt: string;
+    }>;
+  } | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [formData, setFormData] = useState({
     nip: "",
@@ -39,8 +97,7 @@ export default function InputUsulanPage() {
     unitKerja: "",
     unitKerjaId: "", // Tetap ada untuk kompatibilitas backend
     golongan: "",
-    tmtGolongan: "",
-    tmtPangkat: "", // Tambah field TMT Pangkat
+    tmtJabatan: "", // Changed from tmtGolongan to tmtJabatan
     jabatan: "",
     jenisJabatan: "",
     tahunLulus: "",
@@ -52,45 +109,66 @@ export default function InputUsulanPage() {
   // Add state for unit kerja options (removed - using text input instead)
   // const [unitKerjaOptions, setUnitKerjaOptions] = useState<{id: string, nama: string, jenjang?: string, npsn?: string}[]>([])
 
-  const [uploadedFiles, setUploadedFiles] = useState<Record<string, any>>({})
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, {
+    file: File | null;
+    name?: string;
+    size?: number;
+    uploadDate?: Date;
+    status?: string;
+    fileUrl?: string;
+    fileName?: string;
+    notes?: string;
+    uploadedAt?: string;
+    source?: 'upload' | 'simasn';
+  }>>({})
   const [requiredDocuments, setRequiredDocuments] = useState<DocumentRequirement[]>([])
+  const [loadingSimasn, setLoadingSimasn] = useState<Record<string, boolean>>({})
+  const [isDownloadingSimasn, setIsDownloadingSimasn] = useState(false)
 
   const fetchUserData = async () => {
     try {
-      const response = await fetch("/api/auth/me")
+      const response = await fetch("/api/pegawai/profile")
       if (response.ok) {
         const data = await response.json()
-        setUserData(data.data)
+        console.log('User profile data received:', data); // Debug log
         
-        // Get the user's unitKerjaId if it exists, or match by name
-        let userUnitKerjaId = data.data.user.unitKerjaId || "";
+        // Ensure unitKerja is handled correctly if it's an object
+        if (data.unitKerja && typeof data.unitKerja === 'object') {
+          // Extract nama or name from the unitKerja object
+          data.unitKerjaStr = data.unitKerja.nama || data.unitKerja.name || "Unit Kerja Tidak Tersedia";
+        } else {
+          data.unitKerjaStr = safeGetString(data.unitKerja);
+        }
         
-        // If there's no unitKerjaId but there is a unitKerja name, try to find a match
-        if (!userUnitKerjaId && data.data.user.unitKerja && unitKerjaOptions.length > 0) {
-          const matchedUnitKerja = unitKerjaOptions.find(
-            uk => uk.nama.toLowerCase() === data.data.user.unitKerja.toLowerCase()
-          );
-          if (matchedUnitKerja) {
-            userUnitKerjaId = matchedUnitKerja.id;
+        setUserData(data)
+        
+        // Process TMT Jabatan field
+        let formattedTmtJabatan = "";
+        try {
+          if (data.tmtJabatan) {
+            formattedTmtJabatan = new Date(data.tmtJabatan).toISOString().split('T')[0];
           }
+        } catch (error) {
+          console.error("Error formatting tmtJabatan:", error);
         }
         
         // Auto-fill form with user data
         setFormData({
-          nip: data.data.user.nip || "",
-          nama: data.data.user.name || "",
-          unitKerja: data.data.user.unitKerja || "",
-          unitKerjaId: userUnitKerjaId,
-          golongan: data.data.user.golongan || "",
-          tmtGolongan: data.data.user.tmtGolongan ? new Date(data.data.user.tmtGolongan).toISOString().split('T')[0] : "",
-          jabatan: data.data.user.jabatan || "",
-          jenisJabatan: data.data.user.jenisJabatan || "",
-          pendidikan: "",
+          nip: safeGetString(data.nip),
+          nama: safeGetString(data.name),
+          unitKerja: data.unitKerjaStr || safeGetString(data.unitKerja),
+          unitKerjaId: safeGetString(data.unitKerjaId),
+          golongan: safeGetString(data.golongan),
+          tmtJabatan: formattedTmtJabatan,
+          jabatan: safeGetString(data.jabatan),
+          jenisJabatan: safeGetString(data.jenisJabatan),
           tahunLulus: "",
           nomorSurat: "",
           tanggalSurat: "",
           periode: formData.periode, // Preserve any existing periode value
         })
+      } else {
+        throw new Error('Failed to fetch user profile')
       }
     } catch (error) {
       console.error("Error fetching user data:", error)
@@ -128,49 +206,81 @@ export default function InputUsulanPage() {
     };
     
     initData();
-  }, [editProposalId, toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editProposalId])
 
   const fetchExistingProposal = async (proposalId: string) => {
     try {
       const response = await fetch(`/api/pegawai/proposals/${proposalId}`)
       if (response.ok) {
         const proposal = await response.json()
+        console.log('Existing proposal data:', proposal); // Debug log
+        
+        // Safely handle unit kerja object if present
+        if (proposal.pegawai && proposal.pegawai.unitKerja && typeof proposal.pegawai.unitKerja === 'object') {
+          // Create a safe string version of unitKerja
+          proposal.pegawai.unitKerjaStr = proposal.pegawai.unitKerja.nama || 
+                                         proposal.pegawai.unitKerja.name || 
+                                         "Unit Kerja Tidak Tersedia";
+        }
+        
         setExistingProposal(proposal)
         
-        // Get the unit kerja ID if it exists or try to match by name
-        let proposalUnitKerjaId = proposal.pegawai?.unitKerjaId || "";
-        
-        // If no ID but there is a name, try to find a match
-        if (!proposalUnitKerjaId && proposal.pegawai?.unitKerja && unitKerjaOptions.length > 0) {
-          const matchedUnitKerja = unitKerjaOptions.find(
-            uk => uk.nama.toLowerCase() === proposal.pegawai.unitKerja.toLowerCase()
-          );
-          if (matchedUnitKerja) {
-            proposalUnitKerjaId = matchedUnitKerja.id;
-          } else {
-            // If no match is found, set to custom
-            proposalUnitKerjaId = "custom";
+        // Process TMT Jabatan from proposal or userData
+        let formattedTmtJabatan = "";
+        try {
+          if (proposal.pegawai?.tmtJabatan) {
+            formattedTmtJabatan = new Date(proposal.pegawai.tmtJabatan).toISOString().split('T')[0];
+          } else if (userData?.tmtJabatan) {
+            formattedTmtJabatan = new Date(userData.tmtJabatan).toISOString().split('T')[0];
           }
+        } catch (error) {
+          console.error("Error formatting tmtJabatan:", error);
+        }
+        
+        // Get unit kerja in string form, handling both object and string cases
+        let unitKerjaString = "";
+        if (proposal.pegawai?.unitKerjaStr) {
+          unitKerjaString = proposal.pegawai.unitKerjaStr;
+        } else if (proposal.pegawai?.unitKerja && typeof proposal.pegawai.unitKerja === 'object') {
+          unitKerjaString = proposal.pegawai.unitKerja.nama || proposal.pegawai.unitKerja.name || "";
+        } else {
+          unitKerjaString = safeGetString(proposal.pegawai?.unitKerja) || safeGetString(userData?.unitKerja);
         }
         
         // Pre-fill form with existing data
         setFormData(prev => ({
           ...prev,
-          periode: proposal.periode || "",
+          periode: safeGetString(proposal.periode),
           // Prefill with user data or existing proposal data
-          nip: proposal.pegawai?.nip || userData?.user?.nip || "",
-          nama: proposal.pegawai?.name || userData?.user?.name || "",
-          unitKerja: proposal.pegawai?.unitKerja || userData?.user?.unitKerja || "",
-          unitKerjaId: proposalUnitKerjaId,
-          golongan: proposal.pegawai?.golongan || userData?.user?.golongan || "",
-          jabatan: proposal.pegawai?.jabatan || userData?.user?.jabatan || "",
-          jenisJabatan: userData?.user?.jenisJabatan || "",
+          nip: safeGetString(proposal.pegawai?.nip) || safeGetString(userData?.nip),
+          nama: safeGetString(proposal.pegawai?.name) || safeGetString(userData?.name),
+          unitKerja: unitKerjaString,
+          unitKerjaId: safeGetString(proposal.pegawai?.unitKerjaId) || safeGetString(userData?.unitKerjaId),
+          golongan: safeGetString(proposal.pegawai?.golongan) || safeGetString(userData?.golongan),
+          jabatan: safeGetString(proposal.pegawai?.jabatan) || safeGetString(userData?.jabatan),
+          jenisJabatan: safeGetString(userData?.jenisJabatan),
+          tmtJabatan: formattedTmtJabatan,
         }))
         
         // Load existing documents
         if (proposal.documents && proposal.documents.length > 0) {
-          const documentsMap: Record<string, any> = {}
-          proposal.documents.forEach((doc: any) => {
+          const documentsMap: Record<string, {
+            file: File | null;
+            fileUrl?: string;
+            fileName?: string;
+            status?: string;
+            notes?: string;
+            uploadedAt?: string;
+          }> = {}
+          proposal.documents.forEach((doc: {
+            documentRequirement: { code: string };
+            fileUrl: string;
+            fileName: string;
+            status: string;
+            notes: string;
+            uploadedAt: string;
+          }) => {
             documentsMap[doc.documentRequirement.code] = {
               file: null,
               fileUrl: doc.fileUrl,
@@ -203,12 +313,18 @@ export default function InputUsulanPage() {
     try {
       const response = await fetch("/api/document-requirements")
       if (response.ok) {
-        const data = await response.json()
-        // Transform API data to match frontend interface
-        const transformedData = (data.data.requirements || []).map((doc: any) => ({
+        const data = await response.json()          // Transform API data to match frontend interface
+        const transformedData = (data.data.requirements || []).map((doc: {
+          id: string;
+          name: string;
+          isRequired: boolean;
+          hasSimASN: boolean;
+          description: string;
+        }) => ({
           id: doc.id,
           name: doc.name,
           required: doc.isRequired,
+          isRequired: doc.isRequired,
           hasSimASN: doc.hasSimASN,
           description: doc.description
         }))
@@ -294,32 +410,29 @@ export default function InputUsulanPage() {
     toast({ title: "Mengimpor data...", description: "Sedang mengambil data dari sistem" })
     
     try {
-      const response = await fetch(`/api/auth/me`)
+      const response = await fetch(`/api/pegawai/profile`)
       if (response.ok) {
         const data = await response.json()
-        if (data.data && data.data.user) {
-          // Get the user's unitKerjaId if it exists, or match by name
-          let userUnitKerjaId = data.data.user.unitKerjaId || "";
-          
-          // If there's no unitKerjaId but there is a unitKerja name, try to find a match
-          if (!userUnitKerjaId && data.data.user.unitKerja && unitKerjaOptions.length > 0) {
-            const matchedUnitKerja = unitKerjaOptions.find(
-              uk => uk.nama.toLowerCase() === data.data.user.unitKerja.toLowerCase()
-            );
-            if (matchedUnitKerja) {
-              userUnitKerjaId = matchedUnitKerja.id;
+        if (data) {
+          // Process TMT Jabatan field
+          let formattedTmtJabatan = "";
+          try {
+            if (data.tmtJabatan) {
+              formattedTmtJabatan = new Date(data.tmtJabatan).toISOString().split('T')[0];
             }
+          } catch (error) {
+            console.error("Error formatting tmtJabatan:", error);
           }
           
           setFormData({
             ...formData,
-            nama: data.data.user.name || "",
-            unitKerja: data.data.user.unitKerja || "",
-            unitKerjaId: userUnitKerjaId,
-            golongan: data.data.user.golongan || "",
-            tmtGolongan: data.data.user.tmtGolongan ? new Date(data.data.user.tmtGolongan).toISOString().split('T')[0] : "",
-            jabatan: data.data.user.jabatan || "",
-            jenisJabatan: data.data.user.jenisJabatan || "",
+            nama: safeGetString(data.name),
+            unitKerja: safeGetString(data.unitKerja),
+            unitKerjaId: safeGetString(data.unitKerjaId),
+            golongan: safeGetString(data.golongan),
+            tmtJabatan: formattedTmtJabatan,
+            jabatan: safeGetString(data.jabatan),
+            jenisJabatan: safeGetString(data.jenisJabatan),
           })
           toast({ title: "Data berhasil diimpor! 🎉", description: "Data pegawai telah diisi otomatis dari sistem" })
         }
@@ -337,21 +450,40 @@ export default function InputUsulanPage() {
   }
 
   const handleSaveDetail = () => {
-    const isComplete = Object.values(formData).every((value) => value !== "")
-    if (isComplete) {
-      setIsDetailComplete(true)
-      setActiveTab("kelengkapan-berkas")
-      toast({
-        title: "Detail pegawai tersimpan! ✅",
-        description: "Anda dapat melanjutkan ke upload kelengkapan berkas",
-      })
-    } else {
+    // Debug log to see all form data values
+    console.log("Form data at save:", formData);
+    
+    // Check only required fields instead of all fields
+    const requiredFields = ['nip', 'nama', 'unitKerja', 'jabatan', 'jenisJabatan'];
+    
+    // Check if editing mode requires periode
+    if (isEditMode) {
+      requiredFields.push('periode');
+    }
+    
+    // Check if any required field is empty
+    const missingFields = requiredFields.filter(field => 
+      !formData[field as keyof typeof formData] || 
+      formData[field as keyof typeof formData].toString().trim() === ""
+    );
+    
+    if (missingFields.length > 0) {
+      console.log("Missing required fields:", missingFields);
       toast({
         title: "Data belum lengkap",
-        description: "Mohon lengkapi semua field yang wajib diisi",
+        description: `Mohon lengkapi field berikut: ${missingFields.join(", ")}`,
         variant: "destructive",
-      })
+      });
+      return;
     }
+    
+    // If we reach here, validation passed
+    setIsDetailComplete(true);
+    setActiveTab("kelengkapan-berkas");
+    toast({
+      title: "Detail pegawai tersimpan! ✅",
+      description: "Anda dapat melanjutkan ke upload kelengkapan berkas",
+    });
   }
 
   const handleFileUpload = async (docId: string, file: File) => {
@@ -431,8 +563,117 @@ export default function InputUsulanPage() {
     toast({ title: "File dihapus", description: "File telah dihapus dari sistem" })
   }
 
+  // Fungsi untuk mengambil dokumen dari SimASN
+  const fetchSimasnDocument = async (docId: string, docName: string) => {
+    try {
+      setLoadingSimasn(prev => ({ ...prev, [docId]: true }))
+      
+      toast({
+        title: "Mengambil data dari SimASN...",
+        description: `Sedang mengambil dokumen ${docName} dari sistem SimASN`,
+      })
+      
+      // Simulasi delay untuk pengambilan data (akan diganti dengan API call yang sebenarnya)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Nanti ini akan diganti dengan panggilan API yang sesungguhnya
+      // const response = await fetch(`/api/simasn/documents/${docId}?nip=${formData.nip}`)
+      // if (!response.ok) throw new Error('Gagal mengambil dokumen dari SimASN')
+      // const data = await response.json()
+      
+      // Simulasi data response (akan diganti dengan data dari API)
+      const mockData = {
+        success: true,
+        fileUrl: "/simasn-document-sample.pdf",
+        fileName: `${docName} - SimASN.pdf`,
+        size: 256000, // 250KB
+      }
+      
+      if (mockData.success) {
+        setUploadedFiles(prev => ({
+          ...prev,
+          [docId]: {
+            file: null, // Tidak ada file lokal
+            fileUrl: mockData.fileUrl,
+            fileName: mockData.fileName,
+            name: mockData.fileName,
+            size: mockData.size,
+            uploadDate: new Date(),
+            status: isEditMode ? "MENUNGGU_VERIFIKASI" : "uploaded",
+            source: 'simasn'
+          }
+        }))
+        
+        toast({
+          title: "Dokumen berhasil diambil! ✅",
+          description: `${docName} telah berhasil diambil dari SimASN`,
+        })
+      } else {
+        throw new Error('Gagal mengambil dokumen')
+      }
+    } catch (error) {
+      console.error(`Error fetching document from SimASN:`, error)
+      toast({
+        title: "Gagal mengambil dokumen",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat mengambil dokumen dari SimASN",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingSimasn(prev => ({ ...prev, [docId]: false }))
+    }
+  }
+  
+  // Fungsi untuk mengambil semua dokumen SimASN sekaligus
+  const fetchAllSimasnDocuments = async () => {
+    try {
+      setIsDownloadingSimasn(true)
+      
+      toast({
+        title: "Mengambil semua dokumen SimASN...",
+        description: "Proses ini mungkin memerlukan waktu beberapa saat",
+      })
+      
+      // Daftar dokumen yang tersedia di SimASN
+      const simasnDocIds = requiredDocuments
+        .filter(doc => doc.hasSimASN)
+        .map(doc => doc.id)
+      
+      // Simulasi mengambil semua dokumen
+      await Promise.all(
+        simasnDocIds.map(async docId => {
+          const doc = requiredDocuments.find(d => d.id === docId)
+          if (doc) {
+            await fetchSimasnDocument(docId, doc.name)
+          }
+        })
+      )
+      
+      toast({
+        title: "Semua dokumen SimASN berhasil diambil! ✅",
+        description: "Dokumen telah ditambahkan ke daftar berkas Anda",
+      })
+    } catch (error) {
+      console.error("Error fetching all SimASN documents:", error)
+      toast({
+        title: "Gagal mengambil beberapa dokumen",
+        description: "Beberapa dokumen gagal diambil dari SimASN. Silakan coba satu per satu.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDownloadingSimasn(false)
+    }
+  }
+
   const handleSubmitProposal = async () => {
-    // Check if periode is filled when in edit mode
+    console.log("Form data at submission:", formData);
+    console.log("Uploaded files:", uploadedFiles);
+    
+    // Debug info about required docs
+    const requiredDocs = requiredDocuments.filter(doc => doc.required);
+    const uploadedRequiredDocs = requiredDocs.filter(doc => uploadedFiles[doc.id]);
+    console.log(`Uploaded ${uploadedRequiredDocs.length} of ${requiredDocs.length} required documents`);
+    
+    // Check if periode is filled when in edit mode (more lenient validation)
     if (isEditMode && !formData.periode.trim()) {
       toast({
         title: "Periode Harus Diisi",
@@ -442,15 +683,47 @@ export default function InputUsulanPage() {
       return
     }
 
-    const allRequiredUploaded = requiredDocuments.filter((doc) => doc.required).every((doc) => uploadedFiles[doc.id])
+    // More lenient TMT Jabatan validation - only validate if it's provided
+    if (formData.tmtJabatan && formData.tmtJabatan.trim() !== "") {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(formData.tmtJabatan)) {
+        toast({
+          title: "Format TMT Jabatan tidak valid",
+          description: "Gunakan format Tahun-Bulan-Tanggal (YYYY-MM-DD)",
+          variant: "destructive",
+        })
+        return
+      }
+    }
 
+    // Count required documents that have been uploaded
+    const allRequiredUploaded = requiredDocuments.filter((doc) => doc.isRequired).every((doc) => uploadedFiles[doc.id])
+    
+    // More lenient document validation for debugging/development
     if (!allRequiredUploaded) {
-      toast({
-        title: "Dokumen Wajib Belum Lengkap",
-        description: "Mohon upload semua dokumen yang wajib diisi.",
-        variant: "destructive",
-      })
-      return
+      const missingDocs = requiredDocuments
+        .filter(doc => doc.isRequired && !uploadedFiles[doc.id])
+        .map(doc => doc.name);
+      
+      console.log("Missing required documents:", missingDocs);
+      
+      // In development, show warning but allow proceeding
+      if (process.env.NODE_ENV !== 'production') {
+        const willProceed = confirm(
+          `Dokumen wajib belum lengkap (${missingDocs.join(", ")}). Lanjutkan pengajuan? Ini hanya diizinkan dalam mode development.`
+        );
+        if (!willProceed) {
+          return;
+        }
+      } else {
+        // In production, still require all documents
+        toast({
+          title: "Dokumen Wajib Belum Lengkap",
+          description: "Mohon upload semua dokumen yang wajib diisi.",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     toast({
@@ -459,6 +732,43 @@ export default function InputUsulanPage() {
     })
 
     try {
+      // First, update the user profile with the latest input data
+      const profileUpdateData = {
+        name: formData.nama,
+        jabatan: formData.jabatan,
+        jenisJabatan: formData.jenisJabatan,
+        unitKerja: formData.unitKerja,
+        tmtJabatan: formData.tmtJabatan, // Send date in YYYY-MM-DD format for server to handle as timestamp
+      }
+
+      console.log("Updating profile from input-usulan:", profileUpdateData); // Debug log
+
+      // Update profile data
+      const profileResponse = await fetch('/api/pegawai/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileUpdateData),
+      })
+
+      if (!profileResponse.ok) {
+        console.warn("Failed to update profile data, but continuing with proposal submission");
+      } else {
+        const profileData = await profileResponse.json();
+        console.log("Profile update successful:", profileData);
+        
+        // Update userData with the new profile data
+        setUserData({
+          ...userData,
+          name: profileData.name,
+          jabatan: profileData.jabatan,
+          jenisJabatan: profileData.jenisJabatan,
+          unitKerja: profileData.unitKerja,
+          tmtJabatan: profileData.tmtJabatan
+        });
+      }
+
       if (isEditMode && existingProposal) {
         // Update existing proposal
         const updateData = {
@@ -481,11 +791,14 @@ export default function InputUsulanPage() {
 
         // Upload documents if any
         const documentsToUpload = Object.entries(uploadedFiles)
-          .filter(([_, fileData]) => fileData.file && !fileData.fileUrl);
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          .filter(([docId, fileData]) => fileData.file && !fileData.fileUrl);
 
         for (const [docId, fileData] of documentsToUpload) {
           const formData = new FormData();
-          formData.append('file', fileData.file);
+          if (fileData.file) {
+            formData.append('file', fileData.file);
+          }
           formData.append('documentRequirementId', docId);
 
           const uploadResponse = await fetch(`/api/pegawai/proposals/${existingProposal.id}/documents`, {
@@ -517,7 +830,7 @@ export default function InputUsulanPage() {
             description: "Usulan Anda telah berhasil dilengkapi dan diajukan untuk verifikasi.",
           })
           setTimeout(() => {
-            window.location.href = '/pegawai/riwayat-usulan'
+            window.location.href = '/pegawai/riwayat-dokumen'
           }, 2000)
         } else {
           const errorData = await submitResponse.json();
@@ -525,9 +838,10 @@ export default function InputUsulanPage() {
         }
       } else {
         // Create new proposal
+        const currentYear = new Date().getFullYear();
         const proposalData = {
-          periode: formData.periode || "Agustus 2025",
-          notes: `Usulan kenaikan pangkat untuk periode ${formData.periode || "Agustus 2025"}. Pengajuan oleh ${formData.nama} (${formData.nip})`,
+          periode: formData.periode || `${currentYear}`,
+          notes: `Usulan kenaikan pangkat untuk periode ${formData.periode || currentYear}. Pengajuan oleh ${formData.nama} (${formData.nip})`,
           formData,
         }
 
@@ -550,7 +864,9 @@ export default function InputUsulanPage() {
         // Upload documents
         for (const [docId, fileData] of Object.entries(uploadedFiles)) {
           const formData = new FormData();
-          formData.append('file', fileData.file);
+          if (fileData.file) {
+            formData.append('file', fileData.file);
+          }
           formData.append('documentRequirementId', docId);
 
           const uploadResponse = await fetch(`/api/pegawai/proposals/${proposalId}/documents`, {
@@ -582,7 +898,7 @@ export default function InputUsulanPage() {
             description: "Dokumen Anda telah berhasil diajukan dan akan segera diverifikasi.",
           })
           setTimeout(() => {
-            window.location.href = '/pegawai/riwayat-usulan'
+            window.location.href = '/pegawai/riwayat-dokumen'
           }, 2000)
         } else {
           const errorData = await submitResponse.json();
@@ -600,7 +916,12 @@ export default function InputUsulanPage() {
   }
 
   return (
-    <DashboardLayout userType="pegawai" isLoading={isLoading}>
+    <DashboardLayout userType="pegawai">
+      {isLoading ? (
+        <div className="flex justify-center items-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : (
       <div className="space-y-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <div className="bg-gradient-to-r from-sky-500 to-teal-500 rounded-2xl p-6 text-white">
@@ -608,14 +929,14 @@ export default function InputUsulanPage() {
               <FileText className="h-8 w-8 mr-3" />
               <div>
                 <h1 className="text-3xl font-bold">Input Usulan Pengajuan</h1>
-                <p className="text-sky-100">Periode Agustus 2025</p>
+                <p className="text-sky-100">Periode {new Date().getFullYear()}</p>
               </div>
             </div>
             <div className="bg-white/10 rounded-lg p-4">
               <div className="flex items-center">
                 <Info className="h-5 w-5 mr-3 text-sky-200" />
                 <p className="text-sky-100">
-                  Lengkapi detail pegawai, kemudian upload semua dokumen yang diperlukan. Semua field wajib diisi.
+                  Lengkapi detail pegawai, termasuk TMT Jabatan (dalam format Tahun-Bulan-Tanggal), kemudian upload semua dokumen yang diperlukan.
                 </p>
               </div>
             </div>
@@ -748,24 +1069,18 @@ export default function InputUsulanPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="tmtGolongan">TMT Golongan *</Label>
+                      <Label htmlFor="tmtJabatan">TMT Jabatan *</Label>
                       <Input
-                        id="tmtGolongan"
+                        id="tmtJabatan"
                         type="date"
-                        value={formData.tmtGolongan}
-                        onChange={(e) => setFormData({ ...formData, tmtGolongan: e.target.value })}
+                        placeholder="YYYY-MM-DD"
+                        value={formData.tmtJabatan}
+                        onChange={(e) => setFormData({ ...formData, tmtJabatan: e.target.value })}
                         required
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tmtPangkat">TMT Pangkat *</Label>
-                      <Input
-                        id="tmtPangkat"
-                        type="date"
-                        value={formData.tmtPangkat}
-                        onChange={(e) => setFormData({ ...formData, tmtPangkat: e.target.value })}
-                        required
-                      />
+                      <p className="text-xs text-gray-500">
+                        Format: Tahun-Bulan-Tanggal (contoh: 2025-01-01)
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="jabatan">Jabatan *</Label>
@@ -829,10 +1144,57 @@ export default function InputUsulanPage() {
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Simpan & Lanjutkan
                     </Button>
+                    
+                    {/* Debug button - only visible in development */}
+                    {process.env.NODE_ENV !== 'production' && (
+                      <Button 
+                        variant="outline" 
+                        className="ml-2 border-orange-500 text-orange-700"
+                        onClick={() => {
+                          console.log("Force proceeding to next step");
+                          setIsDetailComplete(true);
+                          setActiveTab("kelengkapan-berkas");
+                          toast({
+                            title: "Debug: Force Proceeding",
+                            description: "Skipping validation and proceeding to next step",
+                          });
+                        }}
+                      >
+                        Debug: Force Proceed
+                      </Button>
+                    )}
                   </div>
                 </TabsContent>
 
                 <TabsContent value="kelengkapan-berkas" className="space-y-6 pt-6">
+                  {/* Tombol tarik semua data SimASN */}
+                  {requiredDocuments.some(doc => doc.hasSimASN) && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Database className="h-5 w-5 text-blue-600" />
+                          <div>
+                            <h3 className="font-medium text-blue-800 dark:text-blue-200">
+                              Dokumen SimASN Tersedia
+                            </h3>
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              Beberapa dokumen dapat ditarik dari database SimASN secara otomatis
+                            </p>
+                          </div>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-200"
+                          onClick={fetchAllSimasnDocuments}
+                          disabled={isDownloadingSimasn}
+                        >
+                          <Database className="h-4 w-4 mr-2" />
+                          {isDownloadingSimasn ? 'Mengambil data...' : 'Tarik Semua Data SimASN'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 dark:bg-gray-800">
@@ -846,20 +1208,39 @@ export default function InputUsulanPage() {
                       <tbody>
                         {requiredDocuments.map((doc) => {
                           const uploadedFile = uploadedFiles[doc.id]
+                          const isLoading = loadingSimasn[doc.id] || false
                           return (
                             <tr key={doc.id} className="border-b dark:border-gray-700">
                               <td className="p-3">
-                                <p className="font-medium">{doc.name}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{doc.description}</p>
+                                <div className="flex items-center">
+                                  <div>
+                                    <p className="font-medium">{doc.name}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{doc.description}</p>
+                                  </div>
+                                  {doc.hasSimASN && (
+                                    <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-700 border-blue-200">
+                                      SimASN
+                                    </Badge>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-3">
-                                <Badge variant="destructive">Wajib</Badge>
+                                {doc.isRequired ? (
+                                  <Badge variant="destructive">Wajib</Badge>
+                                ) : (
+                                  <Badge variant="outline">Opsional</Badge>
+                                )}
                               </td>
                               <td className="p-3">
                                 {uploadedFile ? (
                                   <div className="text-xs">
-                                    <p className="font-medium text-green-600">{uploadedFile.name}</p>
-                                    <p className="text-gray-500">{(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                                    <p className="font-medium text-green-600">{uploadedFile.name || uploadedFile.fileName || "File Uploaded"}</p>
+                                    {uploadedFile.size && <p className="text-gray-500">{(uploadedFile.size / 1024).toFixed(2)} KB</p>}
+                                    {uploadedFile.source === 'simasn' && (
+                                      <Badge variant="outline" className="mt-1 bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
+                                        Data SimASN
+                                      </Badge>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-xs text-gray-400">Belum diupload</span>
@@ -882,9 +1263,28 @@ export default function InputUsulanPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => document.getElementById(`file-${doc.id}`)?.click()}
+                                    disabled={isLoading}
                                   >
                                     <Upload className="h-3 w-3" />
                                   </Button>
+                                  
+                                  {/* Tombol Tarik Data SimASN */}
+                                  {doc.hasSimASN && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                                      onClick={() => fetchSimasnDocument(doc.id, doc.name)}
+                                      disabled={isLoading}
+                                    >
+                                      {isLoading ? (
+                                        <div className="h-3 w-3 rounded-full border-2 border-b-transparent border-blue-700 animate-spin" />
+                                      ) : (
+                                        <Database className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  )}
+                                  
                                   {uploadedFile && (
                                     <Button variant="destructive" size="sm" onClick={() => handleDeleteFile(doc.id)}>
                                       <Trash2 className="h-3 w-3" />
@@ -903,6 +1303,28 @@ export default function InputUsulanPage() {
                       Kembali
                     </Button>
                     <div className="flex space-x-2">
+                      {process.env.NODE_ENV !== 'production' && (
+                        <Button 
+                          variant="outline" 
+                          className="border-yellow-500 text-yellow-700"
+                          onClick={() => {
+                            debug("Current state", {
+                              formData,
+                              uploadedFiles,
+                              userData,
+                              existingProposal,
+                              requiredDocuments
+                            });
+                            toast({
+                              title: "Debug Info",
+                              description: "Check console for debug information",
+                            });
+                          }}
+                        >
+                          Debug Info
+                        </Button>
+                      )}
+                      
                       {isEditMode && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -940,7 +1362,8 @@ export default function InputUsulanPage() {
                                       })
                                       window.location.href = '/pegawai/dashboard'
                                     }
-                                  } catch (error) {
+                                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                  } catch (err) {
                                     toast({
                                       title: "❌ Gagal Membatalkan Usulan",
                                       description: "Terjadi kesalahan saat membatalkan usulan.",
@@ -969,6 +1392,7 @@ export default function InputUsulanPage() {
           </Card>
         </motion.div>
       </div>
+      )}
     </DashboardLayout>
   )
 }

@@ -1,0 +1,377 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PEGAWAI
+  OPERATOR
+  ADMIN
+  OPERATOR_SEKOLAH
+  OPERATOR_UNIT_KERJA
+}
+
+enum StatusDokumen {
+  MENUNGGU_VERIFIKASI
+  PERLU_PERBAIKAN
+  DISETUJUI
+  DITOLAK
+}
+
+enum StatusProposal {
+  DRAFT
+  DIAJUKAN
+  DIPROSES_OPERATOR
+  DIKEMBALIKAN_OPERATOR
+  DISETUJUI_OPERATOR
+  DIPROSES_ADMIN
+  DIKEMBALIKAN_ADMIN
+  SELESAI
+  DITOLAK
+  DITARIK
+  MENUNGGU_VERIFIKASI_DINAS
+  MENUNGGU_VERIFIKASI_SEKOLAH
+  PERLU_PERBAIKAN_DARI_DINAS
+  PERLU_PERBAIKAN_DARI_SEKOLAH
+  DITOLAK_SEKOLAH
+  DITOLAK_DINAS
+  DITOLAK_ADMIN
+}
+
+enum Wilayah {
+  BALIKPAPAN_PPU
+  KUTIM_BONTANG
+  KUKAR
+  KUBAR_MAHULU
+  PASER
+  BERAU
+  SAMARINDA
+}
+
+model WilayahMaster {
+  id               String    @id @default(cuid())
+  kode             String    @unique // BALIKPAPAN_PPU, KUTIM_BONTANG, dll
+  nama             String    // Nama singkat
+  namaLengkap      String    // Nama lengkap
+  ibukota          String?   // Ibukota wilayah
+  koordinat        String?   // Koordinat geografis
+  luasWilayah      Int?      // Luas dalam km2
+  jumlahKecamatan  Int?      // Jumlah kecamatan
+  isActive         Boolean   @default(true)
+  
+  // Relasi
+  unitKerja        UnitKerja[]
+  users            User[]
+  timelines        Timeline[]
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model User {
+  id                 String           @id @default(cuid())
+  nip                String           @unique
+  name               String
+  email              String?          @unique
+  password           String
+  role               Role             @default(PEGAWAI)
+  mustChangePassword Boolean          @default(true)
+  
+  // Data Kepegawaian
+  golongan           String?
+  tmtGolongan        DateTime?
+  jabatan            String?
+  tmtJabatan         DateTime?
+  jenisJabatan       String?
+  unitKerjaId        String? // Foreign key ke UnitKerja
+  unitKerja          UnitKerja? @relation(fields: [unitKerjaId], references: [id])
+  
+  // Data Pendidikan
+  pendidikan         String?
+  jurusan            String?
+  tahunLulus         String?
+  
+  // Relasi Wilayah Baru
+  wilayahId          String? // Foreign key ke WilayahMaster (untuk operator)
+  wilayahRelasi      WilayahMaster? @relation(fields: [wilayahId], references: [id])
+  
+  // Backward compatibility (akan dihapus nanti)
+  wilayah            Wilayah? // Khusus untuk Operator
+  
+  // Data Pribadi
+  phone              String?
+  address            String?
+  profilePictureUrl  String?
+  
+  // Relasi
+  proposals          PromotionProposal[] @relation("PegawaiProposals")
+  verifiedProposals  PromotionProposal[] @relation("OperatorVerifications")
+  activityLogs       ActivityLog[]
+  notifications      Notification[]
+  userRolePermissions UserRolePermission[]
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  
+  @@index([wilayahId])
+}
+
+model UnitKerja {
+  id            String   @id @default(cuid())
+  nama          String   @unique
+  npsn          String?  @unique
+  jenjang       String   // SD, SMP, SMA, SMK, UMUM
+  alamat        String?
+  kecamatan     String?
+  kabupaten     String?
+  provinsi      String?
+  
+  // Data koordinat geografis
+  latitude      Float?
+  longitude     Float?
+  
+  // Data Sekolah dari API eksternal
+  bentukSekolah String?   // SD, SMP, SMA, SMK, dll.
+  statusSekolah String?   // NEGERI, SWASTA
+  lastSyncedAt  DateTime?
+  
+  // Relasi Wilayah Baru
+  wilayahId     String?
+  wilayahRelasi WilayahMaster? @relation(fields: [wilayahId], references: [id])
+  
+  // Backward compatibility (akan dihapus nanti)
+  wilayah       Wilayah
+  
+  status        String   @default("Aktif")
+  kepalaSekolah String?
+  telepon       String?
+  email         String?
+  website       String?
+  
+  // Relasi
+  pegawai       User[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([wilayahId])
+  @@index([jenjang])
+}
+
+model PromotionProposal {
+  id            String         @id @default(cuid())
+  periode       String // e.g., "Agustus 2025"
+  status        StatusProposal @default(DRAFT)
+  notes         String?
+  
+  // Cover letter information
+  nomorSuratPengantar String?
+  tanggalSurat        DateTime?
+  fileSuratPengantar  String? // File path/URL
+  
+  pegawaiId     String
+  pegawai       User           @relation("PegawaiProposals", fields: [pegawaiId], references: [id])
+  
+  operatorId    String?
+  operator      User?          @relation("OperatorVerifications", fields: [operatorId], references: [id])
+
+  documents     ProposalDocument[]
+  
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model DocumentRequirement {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., "sk-kenaikan-terakhir"
+  name        String
+  description String?
+  isRequired  Boolean  @default(true)
+  hasSimASN   Boolean  @default(false)
+
+  proposals   ProposalDocument[]
+  detailInfo  DetailedDocumentInfo?
+}
+
+model ProposalDocument {
+  id                    String        @id @default(cuid())
+  proposalId            String
+  proposal              PromotionProposal @relation(fields: [proposalId], references: [id])
+  
+  documentRequirementId String
+  documentRequirement   DocumentRequirement @relation(fields: [documentRequirementId], references: [id])
+  
+  fileUrl               String
+  fileName              String
+  fileSize              Int // in bytes
+  status                StatusDokumen @default(MENUNGGU_VERIFIKASI)
+  notes                 String?
+  
+  uploadedAt            DateTime      @default(now())
+  
+  @@unique([proposalId, documentRequirementId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   Json?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+model Timeline {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  jabatanType String   // "pelaksana", "struktural", "fungsional", "all"
+  
+  // Periode waktu
+  startDate   DateTime
+  endDate     DateTime
+  
+  // Status dan pengaturan
+  isActive    Boolean  @default(true)
+  priority    Int      @default(1) // 1=Normal, 2=Penting, 3=Mendesak
+  
+  // Relasi Wilayah Baru
+  wilayahId   String?
+  wilayahRelasi WilayahMaster? @relation(fields: [wilayahId], references: [id])
+  
+  // Backward compatibility (akan dihapus nanti)
+  wilayah     Wilayah?
+  
+  // Metadata
+  createdBy   String?
+  notes       String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([wilayahId])
+}
+
+model DetailedDocumentInfo {
+  id               String  @id @default(cuid())
+  documentReqId    String  @unique
+  documentReq      DocumentRequirement @relation(fields: [documentReqId], references: [id])
+  
+  // Informasi detail
+  purpose          String? // Tujuan dokumen
+  obtainMethod     String? // Cara memperoleh
+  validityPeriod   String? // Masa berlaku
+  legalBasis       String? // Dasar hukum
+  
+  // Template dan contoh
+  templateUrl      String? // Link template
+  sampleUrl        String? // Link contoh
+  
+  // Syarat tambahan
+  requirements     Json?   // Array syarat tambahan
+  
+  // Tips pengisian
+  fillTips         String?
+  commonMistakes   String? // Kesalahan umum
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  type        String   @default("info") // info, success, warning, error
+  userId      String?  // Specific user, null for global
+  userRole    Role?    // Role-based notification
+  isRead      Boolean  @default(false)
+  actionUrl   String?  // Optional URL to navigate to
+  actionLabel String?  // Optional action button text
+  
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SystemSetting {
+  category    String
+  key         String
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([category, key])
+  @@index([category])
+}
+
+// Model baru untuk manajemen role dan permission
+model RoleDefinition {
+  id            String    @id @default(cuid())
+  name          String    @unique // Super Admin, Admin, Operator, dll
+  description   String?
+  color         String?   // CSS color class
+  isSystem      Boolean   @default(false) // true untuk role bawaan sistem
+  rolePriority  Int       @default(0) // Prioritas role, angka lebih tinggi = prioritas lebih tinggi
+  
+  // Relasi
+  permissions   RolePermission[]
+  userRoles     UserRolePermission[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Permission {
+  id            String    @id @default(cuid())
+  code          String    @unique // unique code like "create:user", "edit:timeline"
+  name          String    // Display name
+  description   String?
+  module        String    // Nama modul: users, proposals, timeline, dll
+  category      String    // Kategori: read, write, admin, etc.
+  
+  // Relasi
+  rolePermissions RolePermission[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([module])
+  @@index([category])
+}
+
+model RolePermission {
+  id            String    @id @default(cuid())
+  roleId        String
+  permissionId  String
+  
+  // Relasi
+  role          RoleDefinition @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  
+  @@unique([roleId, permissionId])
+}
+
+model UserRolePermission {
+  id            String    @id @default(cuid())
+  userId        String
+  roleId        String
+  
+  // Relasi
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role          RoleDefinition @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  assignedAt    DateTime  @default(now())
+  assignedBy    String?
+  
+  @@unique([userId, roleId])
+}

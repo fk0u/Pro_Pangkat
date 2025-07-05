@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { useState, useEffect } from "react"
 import { safeObjectEntries, safeMapToArray, isValidArray, ensureArray, ensureString } from "@/lib/safe-utils"
+import TimelineView from "@/components/timeline-view"
 
 interface DocumentRequirement {
   id: string
@@ -340,6 +341,9 @@ export default function TimelinePage() {
             </div>
           </div>
         </motion.div>
+
+        {/* Real-time Timeline */}
+        <TimelineView userType="operator" />
 
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -3,7 +3,7 @@ export interface User {
   nip: string
   name: string
   email: string
-  role: "PEGAWAI" | "OPERATOR" | "ADMIN"
+  role: "PEGAWAI" | "OPERATOR" | "ADMIN" | "OPERATOR_SEKOLAH" | "OPERATOR_UNIT_KERJA"
   unitKerja?: string
   wilayah?: string
   golongan?: string
@@ -12,6 +12,13 @@ export interface User {
   isActive: boolean
   createdAt: Date
   updatedAt: Date
+}
+
+export interface ApiResponse {
+  success: boolean
+  message?: string
+  error?: string
+  data?: any
 }
 
 export interface PromotionProposal {

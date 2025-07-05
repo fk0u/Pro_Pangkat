@@ -6,6 +6,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, CheckCircle, AlertTriangle, Info } from "lucide-react"
+import TimelineView from "@/components/timeline-view"
 
 interface ApiTimelineItem {
   id: string
@@ -170,6 +171,9 @@ export default function OperatorSekolahTimelinePage() {
             </div>
           </div>
         </motion.div>
+
+        {/* Real-time Timeline */}
+        <TimelineView userType="operator-sekolah" />
 
         {/* Active Timeline Alert */}
         <motion.div

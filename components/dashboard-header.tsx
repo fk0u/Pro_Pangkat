@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LogOut, User, Settings } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
-import NotificationDropdown from "./ui/notification"
+import { NotificationsPopover } from "./notifications-popover"
 
 interface DashboardHeaderProps {
   userType: "pegawai" | "operator" | "admin" | "operator-sekolah"
@@ -55,7 +55,7 @@ export function DashboardHeader({ userType, userName = "User" }: DashboardHeader
       </div>
       <div className="flex items-center space-x-4">
         <ThemeToggle />
-        <NotificationDropdown />
+        <NotificationsPopover />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">

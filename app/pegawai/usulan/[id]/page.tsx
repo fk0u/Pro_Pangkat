@@ -82,6 +82,14 @@ export default function DetailUsulanPage() {
       
       if (response.ok) {
         const data = await response.json()
+        
+        // Handle unitKerja if it's an object
+        if (data.pegawai && data.pegawai.unitKerja && typeof data.pegawai.unitKerja === 'object') {
+          data.pegawai.unitKerja = data.pegawai.unitKerja.nama || 
+            data.pegawai.unitKerja.name || 
+            "Unit Kerja Tidak Tersedia";
+        }
+        
         setUsulan(data)
       } else {
         throw new Error("Failed to fetch proposal detail")

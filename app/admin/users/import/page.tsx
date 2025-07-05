@@ -104,7 +104,7 @@ export default function ImportPegawaiPage() {
     <DashboardLayout userType="admin">
       <div className="space-y-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-2xl p-6 text-white">
+          <div className="bg-gradient-to-r from-red-700 to-rose-600 rounded-2xl p-6 text-white">
             <div className="flex items-center mb-4">
               <UserPlus className="h-8 w-8 mr-3" />
               <div>

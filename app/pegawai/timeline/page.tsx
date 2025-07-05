@@ -5,7 +5,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, FileText, AlertCircle, CheckCircle, Info, Download, AlertTriangle } from "lucide-react"
+import { Calendar, FileText, AlertCircle, CheckCircle, Info, Download, AlertTriangle, Clock } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import TimelineView from "@/components/timeline-view"
 
 interface DocumentRequirement {
   id: string
@@ -273,8 +274,9 @@ export default function TimelinePage() {
             </div>
           </div>
         </motion.div>
-
-        {/* Timeline Cards */}
+        
+        {/* Real-time Timeline */}
+        <TimelineView userType="pegawai" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {timelineData.map((timeline, index) => (
             <motion.div
@@ -394,7 +396,7 @@ export default function TimelinePage() {
                                     </Badge>
                                   </div>
                                   <div className="grid gap-3">
-                                    {docs.map((doc, index) => (
+                                    {docs.map((doc) => (
                                       <div key={doc.id} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-gray-200 dark:border-gray-700">
                                         <div className="flex items-start justify-between">
                                           <div className="flex-1">
@@ -444,10 +446,14 @@ export default function TimelinePage() {
                                           </div>
                                           
                                           <div className="ml-4">
-                                            <Button size="sm" variant="outline" className="text-xs">
+                                            <a
+                                              href="/templates/template.docx"
+                                              download
+                                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-500 bg-transparent hover:bg-gray-100"
+                                            >
                                               <Download className="h-3 w-3 mr-1" />
                                               Template
-                                            </Button>
+                                            </a>
                                           </div>
                                         </div>
                                       </div>
@@ -505,15 +511,6 @@ export default function TimelinePage() {
                         </div>
                       </DialogContent>
                     </Dialog>
-
-                    {timeline.status === "active" && (
-                      <Button
-                        className="w-full bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600"
-                        onClick={() => (window.location.href = "/pegawai/input-usulan")}
-                      >
-                        Ajukan Sekarang
-                      </Button>
-                    )}
                   </div>
                 </CardContent>
               </Card>

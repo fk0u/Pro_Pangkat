@@ -8,246 +8,306 @@ async function main() {
   // Create document requirements
   const documentRequirements = [
     {
-      code: 'sk-pengangkatan-pertama',
-      name: 'Fotokopi SK Pengangkatan Pertama',
-      description: 'Surat Keputusan pengangkatan pertama kali sebagai PNS',
+      code: 'surat-pengantar-usulan',
+      name: 'Surat Pengantar Usulan',
+      description: 'Surat pengantar untuk pengajuan kenaikan pangkat',
       isRequired: true,
-      hasSimASN: true,
+      hasSimASN: false,
       detailInfo: {
-        purpose: 'Dokumen ini digunakan untuk membuktikan awal mula status kepegawaian',
-        obtainMethod: 'Diambil dari BKD/BKN saat pertama kali diangkat sebagai PNS',
-        validityPeriod: 'Selamanya',
-        legalBasis: 'PP No. 11 Tahun 2017 tentang Manajemen PNS',
-        requirements: JSON.stringify([
-          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
-          'Pastikan terlihat dengan jelas nomor dan tanggal SK',
-          'Sertakan semua halaman SK termasuk lampiran'
-        ]),
-        fillTips: 'Scan dengan resolusi minimal 300 DPI untuk kejelasan dokumen',
-        commonMistakes: 'SK yang tidak lengkap atau tidak terbaca dengan jelas'
-      }
-    },
-    {
-      code: 'sk-pangkat-terakhir',
-      name: 'Fotokopi SK Pangkat Terakhir',
-      description: 'Surat Keputusan kenaikan pangkat yang terakhir',
-      isRequired: true,
-      hasSimASN: true,
-      detailInfo: {
-        purpose: 'Dokumen ini digunakan untuk memverifikasi pangkat/golongan saat ini',
-        obtainMethod: 'Diberikan oleh BKD/BKN saat kenaikan pangkat terakhir',
-        validityPeriod: 'Hingga mendapatkan SK Pangkat baru',
+        purpose: 'Sebagai dokumen resmi pengantar untuk mengajukan kenaikan pangkat',
+        obtainMethod: 'Dibuat oleh unit kerja pegawai',
+        validityPeriod: 'Untuk satu kali pengajuan',
         legalBasis: 'PP No. 17 Tahun 2020 tentang Perubahan atas PP No. 11 Tahun 2017',
-        templateUrl: '/templates/contoh-sk-pangkat.pdf',
+        templateUrl: '/templates/contoh-surat-pengantar.pdf',
+        requirements: JSON.stringify([
+          'Menggunakan kop surat resmi unit kerja',
+          'Ditandatangani oleh pejabat yang berwenang',
+          'Mencantumkan data lengkap pegawai yang diusulkan'
+        ]),
+        fillTips: 'Pastikan format dan penomoran sesuai dengan ketentuan tata naskah dinas',
+        commonMistakes: 'Tidak mencantumkan informasi lengkap atau tidak ditandatangani pejabat berwenang'
+      }
+    },
+    {
+      code: 'surat-bebas-hukuman',
+      name: 'Surat Pernyataan Bebas Hukuman Disiplin',
+      description: 'Surat pernyataan bahwa pegawai bebas dari hukuman disiplin',
+      isRequired: true,
+      hasSimASN: false,
+      detailInfo: {
+        purpose: 'Membuktikan bahwa pegawai tidak sedang menjalani hukuman disiplin',
+        obtainMethod: 'Dibuat oleh pegawai dan diketahui atasan langsung',
+        validityPeriod: '6 bulan sejak tanggal penerbitan',
+        legalBasis: 'PP No. 94 Tahun 2021 tentang Disiplin PNS',
+        templateUrl: '/templates/surat-bebas-hukuman.docx',
+        requirements: JSON.stringify([
+          'Ditandatangani oleh pegawai di atas meterai',
+          'Diketahui dan ditandatangani oleh atasan langsung',
+          'Mencantumkan tanggal pembuatan'
+        ]),
+        fillTips: 'Gunakan materai Rp 10.000 dan pastikan cap/stempel unit kerja jelas',
+        commonMistakes: 'Tidak menggunakan materai atau tidak diketahui atasan langsung'
+      }
+    },
+    {
+      code: 'surat-kebenaran-dokumen',
+      name: 'Surat Pernyataan Kebenaran Dokumen Kelengkapan Usulan yang Diupload',
+      description: 'Pernyataan bahwa semua dokumen yang diupload adalah benar dan valid',
+      isRequired: true,
+      hasSimASN: false,
+      detailInfo: {
+        purpose: 'Memastikan pertanggungjawaban pegawai atas kebenaran dokumen yang diajukan',
+        obtainMethod: 'Dibuat oleh pegawai yang bersangkutan',
+        validityPeriod: 'Untuk satu kali pengajuan',
+        legalBasis: 'PP No. 17 Tahun 2020 tentang Perubahan atas PP No. 11 Tahun 2017',
+        templateUrl: '/templates/surat-kebenaran-dokumen.docx',
+        requirements: JSON.stringify([
+          'Ditandatangani oleh pegawai di atas meterai',
+          'Mencantumkan daftar dokumen yang diajukan',
+          'Menyertakan konsekuensi jika terdapat pemalsuan dokumen'
+        ]),
+        fillTips: 'Pastikan seluruh dokumen yang diupload tercantum dalam daftar',
+        commonMistakes: 'Tidak menyertakan seluruh dokumen dalam daftar atau tidak bermeterai'
+      }
+    },
+    {
+      code: 'sk-kenaikan-pangkat-terakhir',
+      name: 'SK Kenaikan Pangkat Terakhir',
+      description: 'Surat Keputusan kenaikan pangkat yang terakhir diterima',
+      isRequired: true,
+      hasSimASN: true,
+      detailInfo: {
+        purpose: 'Membuktikan pangkat/golongan terakhir yang dimiliki pegawai',
+        obtainMethod: 'Diperoleh dari BKD/BKN pada kenaikan pangkat terakhir',
+        validityPeriod: 'Hingga mendapatkan SK pangkat baru',
+        legalBasis: 'PP No. 17 Tahun 2020 tentang Perubahan atas PP No. 11 Tahun 2017',
         requirements: JSON.stringify([
           'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
           'Pastikan terlihat dengan jelas nomor dan tanggal SK',
           'Sertakan semua halaman SK termasuk lampiran'
         ]),
-        fillTips: 'Pastikan semua informasi terbaca dengan jelas terutama TMT dan Golongan/Pangkat',
-        commonMistakes: 'Menggunakan SK lama atau tidak menyertakan lampiran'
+        fillTips: 'Dapat ditarik langsung dari data SimASN jika tersedia',
+        commonMistakes: 'Menggunakan SK yang tidak terbaru atau tidak dilegalisir'
       }
     },
     {
-      code: 'ijazah-terakhir',
-      name: 'Fotokopi Ijazah Pendidikan Terakhir',
-      description: 'Ijazah pendidikan formal terakhir yang telah dilegalisir',
-      isRequired: true,
-      hasSimASN: false,
-      detailInfo: {
-        purpose: 'Membuktikan tingkat pendidikan formal yang telah ditempuh',
-        obtainMethod: 'Diperoleh dari institusi pendidikan tempat menempuh pendidikan',
-        validityPeriod: 'Selamanya',
-        legalBasis: 'Permenpan No. 13 Tahun 2019',
-        requirements: JSON.stringify([
-          'Fotokopi harus dilegalisir oleh institusi yang mengeluarkan',
-          'Lampirkan juga transkrip nilai yang dilegalisir',
-          'Bagi lulusan luar negeri, sertakan juga surat penyetaraan dari Kemendikbud'
-        ]),
-        fillTips: 'Scan dalam satu file dengan transkrip nilai',
-        commonMistakes: 'Tidak menyertakan transkrip nilai atau ijazah tidak dilegalisir'
-      }
-    },
-    {
-      code: 'str-sip',
-      name: 'Fotokopi STR/SIP (Jika Ada)',
-      description: 'Surat Tanda Registrasi atau Surat Izin Praktik untuk profesi tertentu',
-      isRequired: false,
-      hasSimASN: false,
-      detailInfo: {
-        purpose: 'Membuktikan kelayakan praktik untuk profesi tertentu',
-        obtainMethod: 'Diperoleh dari organisasi profesi terkait',
-        validityPeriod: '5 tahun sejak tanggal penerbitan (bervariasi)',
-        legalBasis: 'UU No. 36 Tahun 2014 tentang Tenaga Kesehatan',
-        requirements: JSON.stringify([
-          'Pastikan STR/SIP masih berlaku',
-          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
-          'Lampirkan riwayat perpanjangan jika ada'
-        ]),
-        fillTips: 'Pastikan masa berlaku masih panjang',
-        commonMistakes: 'Menggunakan STR/SIP yang sudah kadaluarsa'
-      }
-    },
-    {
-      code: 'dp3-skp',
-      name: 'Daftar Penilaian Prestasi Kerja (DP3/SKP)',
-      description: 'Penilaian prestasi kerja 2 tahun terakhir',
+      code: 'penilaian-kinerja-1',
+      name: 'Penilaian Kinerja Pegawai 1 (satu) tahun terakhir',
+      description: 'Dokumen penilaian kinerja pegawai untuk 1 tahun terakhir',
       isRequired: true,
       hasSimASN: true,
       detailInfo: {
-        purpose: 'Membuktikan prestasi kerja selama periode penilaian',
-        obtainMethod: 'Diperoleh dari BKD/unit kepegawaian',
+        purpose: 'Menunjukkan kinerja pegawai selama 1 tahun terakhir',
+        obtainMethod: 'Diperoleh dari sistem penilaian kinerja instansi',
         validityPeriod: '1 tahun',
         legalBasis: 'PP No. 30 Tahun 2019 tentang Penilaian Kinerja PNS',
-        templateUrl: '/templates/contoh-skp.pdf',
-        sampleUrl: '/samples/skp-terisi.pdf',
         requirements: JSON.stringify([
-          'Sertakan SKP 2 tahun terakhir',
-          'Pastikan sudah ditandatangani oleh pejabat penilai dan atasan pejabat penilai',
-          'Lampirkan rekap pencapaian target kinerja'
+          'Dokumen asli atau fotokopi yang dilegalisir',
+          'Ditandatangani oleh atasan dan pegawai yang bersangkutan',
+          'Mencantumkan periode penilaian dengan jelas'
         ]),
-        fillTips: 'Pastikan nilai prestasi kerja minimal baik (76)',
-        commonMistakes: 'SKP tidak lengkap atau belum ditandatangani pejabat penilai'
+        fillTips: 'Dapat ditarik langsung dari data SimASN jika tersedia',
+        commonMistakes: 'Periode penilaian tidak sesuai atau tidak ditandatangani'
       }
     },
     {
-      code: 'sertifikat-diklat',
-      name: 'Sertifikat Diklat/Pelatihan',
-      description: 'Sertifikat pendidikan dan pelatihan yang relevan',
+      code: 'penilaian-kinerja-2',
+      name: 'Penilaian Kinerja Pegawai 2 (dua) tahun terakhir',
+      description: 'Dokumen penilaian kinerja pegawai untuk 2 tahun terakhir',
+      isRequired: true,
+      hasSimASN: true,
+      detailInfo: {
+        purpose: 'Menunjukkan kinerja pegawai selama 2 tahun terakhir',
+        obtainMethod: 'Diperoleh dari sistem penilaian kinerja instansi',
+        validityPeriod: '1 tahun',
+        legalBasis: 'PP No. 30 Tahun 2019 tentang Penilaian Kinerja PNS',
+        requirements: JSON.stringify([
+          'Dokumen asli atau fotokopi yang dilegalisir',
+          'Ditandatangani oleh atasan dan pegawai yang bersangkutan',
+          'Mencantumkan periode penilaian dengan jelas'
+        ]),
+        fillTips: 'Dapat ditarik langsung dari data SimASN jika tersedia',
+        commonMistakes: 'Periode penilaian tidak sesuai atau tidak ditandatangani'
+      }
+    },
+    {
+      code: 'sk-pns',
+      name: 'SK PNS',
+      description: 'SK Pengangkatan sebagai PNS (bagi yang baru pertama kali diusulkan kenaikan pangkat)',
       isRequired: false,
-      hasSimASN: false,
-      detailInfo: {
-        purpose: 'Membuktikan telah mengikuti pendidikan dan pelatihan tertentu',
-        obtainMethod: 'Diperoleh dari penyelenggara diklat/pelatihan',
-        validityPeriod: 'Bervariasi tergantung jenis diklat',
-        legalBasis: 'PP No. 11 Tahun 2017 tentang Manajemen PNS',
-        requirements: JSON.stringify([
-          'Sertifikat harus relevan dengan jabatan',
-          'Fotokopi harus dilegalisir jika diperlukan',
-          'Pastikan tanggal pelaksanaan masih dalam periode penilaian'
-        ]),
-        fillTips: 'Urutkan berdasarkan tanggal terbaru',
-        commonMistakes: 'Menyertakan sertifikat yang tidak relevan dengan jabatan'
-      }
-    },
-    {
-      code: 'karpeg',
-      name: 'Fotokopi Kartu Pegawai (Karpeg)',
-      description: 'Kartu identitas pegawai negeri sipil',
-      isRequired: true,
       hasSimASN: true,
       detailInfo: {
-        purpose: 'Membuktikan identitas sebagai PNS',
-        obtainMethod: 'Diterbitkan oleh BKN',
+        purpose: 'Membuktikan status pegawai sebagai PNS',
+        obtainMethod: 'Diterbitkan oleh BKN saat pertama kali diangkat sebagai PNS',
         validityPeriod: 'Selamanya',
-        legalBasis: 'PP No. 11 Tahun 2017 tentang Manajemen PNS',
-        requirements: JSON.stringify([
-          'Fotokopi harus jelas dan dapat terbaca',
-          'Pastikan nomor Karpeg terlihat dengan jelas'
-        ]),
-        fillTips: 'Scan kedua sisi kartu',
-        commonMistakes: 'Tidak menyertakan kedua sisi kartu'
-      }
-    },
-    {
-      code: 'sk-jabatan-terakhir',
-      name: 'Fotokopi SK Jabatan Terakhir',
-      description: 'Surat Keputusan pengangkatan dalam jabatan terakhir',
-      isRequired: true,
-      hasSimASN: true,
-      detailInfo: {
-        purpose: 'Membuktikan jabatan yang sedang diduduki',
-        obtainMethod: 'Diterbitkan oleh pejabat pembina kepegawaian',
-        validityPeriod: 'Hingga ada perubahan jabatan',
         legalBasis: 'PP No. 11 Tahun 2017 tentang Manajemen PNS',
         requirements: JSON.stringify([
           'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
           'Pastikan terlihat dengan jelas nomor dan tanggal SK',
-          'Sertakan semua halaman SK termasuk lampiran'
+          'Wajib bagi yang baru pertama kali mengajukan kenaikan pangkat'
         ]),
-        fillTips: 'Pastikan jabatan yang tercantum sesuai dengan data di sistem',
-        commonMistakes: 'Menggunakan SK jabatan lama yang sudah tidak berlaku'
+        fillTips: 'Dapat ditarik langsung dari data SimASN jika tersedia',
+        commonMistakes: 'Dokumen tidak lengkap atau tidak dilegalisir'
       }
     },
     {
-      code: 'daftar-riwayat-hidup',
-      name: 'Daftar Riwayat Hidup',
-      description: 'Daftar riwayat hidup pegawai',
-      isRequired: true,
-      hasSimASN: false,
+      code: 'sk-cpns',
+      name: 'SK CPNS',
+      description: 'SK Pengangkatan sebagai CPNS (bagi yang baru pertama kali diusulkan kenaikan pangkat)',
+      isRequired: false,
+      hasSimASN: true,
       detailInfo: {
-        purpose: 'Menyediakan informasi riwayat pendidikan dan pekerjaan secara lengkap',
-        obtainMethod: 'Dibuat oleh pegawai yang bersangkutan',
-        templateUrl: '/templates/format-daftar-riwayat-hidup.docx',
-        sampleUrl: '/samples/contoh-daftar-riwayat-hidup.pdf',
+        purpose: 'Membuktikan status awal pengangkatan sebagai CPNS',
+        obtainMethod: 'Diterbitkan oleh BKN saat pertama kali diangkat sebagai CPNS',
+        validityPeriod: 'Selamanya',
+        legalBasis: 'PP No. 11 Tahun 2017 tentang Manajemen PNS',
         requirements: JSON.stringify([
-          'Gunakan format yang telah ditentukan',
-          'Sertakan foto terbaru',
-          'Harus ditandatangani oleh pegawai yang bersangkutan',
-          'Cantumkan tanggal pembuatan'
+          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
+          'Pastikan terlihat dengan jelas nomor dan tanggal SK',
+          'Wajib bagi yang baru pertama kali mengajukan kenaikan pangkat'
         ]),
-        fillTips: 'Lengkapi semua informasi yang diminta sesuai template',
-        commonMistakes: 'Informasi tidak lengkap atau tidak menggunakan format yang ditentukan'
+        fillTips: 'Dapat ditarik langsung dari data SimASN jika tersedia',
+        commonMistakes: 'Dokumen tidak lengkap atau tidak dilegalisir'
       }
     },
     {
-      code: 'pas-foto',
-      name: 'Pas Foto Terbaru',
-      description: 'Pas foto berwarna terbaru dengan latar belakang merah',
-      isRequired: true,
-      hasSimASN: false,
+      code: 'sk-jabatan-fungsional',
+      name: 'SK Pengangkatan Jabatan Fungsional',
+      description: 'SK Pengangkatan pertama kali dalam Jabatan fungsional berikut berita acara pelantikan/sumpah jabatan, atau SK Jabatan Fungsional sesuai SK Kenaikan Pangkat Terakhir',
+      isRequired: false,
+      hasSimASN: true,
       detailInfo: {
-        purpose: 'Untuk keperluan administratif dan identifikasi',
-        obtainMethod: 'Foto di studio foto profesional',
-        validityPeriod: '6 bulan',
+        purpose: 'Membuktikan status jabatan fungsional pegawai',
+        obtainMethod: 'Diterbitkan oleh pejabat pembina kepegawaian',
+        validityPeriod: 'Hingga ada perubahan jabatan',
+        legalBasis: 'Permenpan No. 13 Tahun 2019 tentang Pengusulan, Penetapan, dan Pembinaan Jabatan Fungsional PNS',
         requirements: JSON.stringify([
-          'Ukuran 4x6 cm',
-          'Latar belakang merah',
-          'Menggunakan pakaian dinas formal',
-          'Foto tidak boleh lebih dari 6 bulan'
+          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
+          'Sertakan berita acara pelantikan/sumpah jabatan (bagi pengangkatan pertama)',
+          'Bagi yang sudah pernah naik pangkat, gunakan SK Jabatan Fungsional sesuai SK Kenaikan Pangkat Terakhir'
         ]),
-        fillTips: 'Upload dalam format JPG atau PNG dengan resolusi minimal 300 DPI',
-        commonMistakes: 'Menggunakan foto lama atau tidak sesuai ketentuan'
+        fillTips: 'Pastikan informasi jabatan fungsional sesuai dengan data kepegawaian terkini',
+        commonMistakes: 'Tidak menyertakan berita acara pelantikan atau menggunakan SK yang tidak sesuai'
       }
     },
     {
-      code: 'surat-pengantar',
-      name: 'Surat Pengantar dari Unit Kerja',
-      description: 'Surat pengantar pengajuan kenaikan pangkat dari unit kerja',
-      isRequired: true,
+      code: 'sertifikat-uji-kompetensi-kenaikan-jenjang',
+      name: 'Sertifikat Uji Kompetensi Kenaikan Jenjang',
+      description: 'Sertifikat Uji Kompetensi untuk kenaikan jenjang jabatan fungsional',
+      isRequired: false,
       hasSimASN: false,
       detailInfo: {
-        purpose: 'Sebagai pengantar resmi dari unit kerja',
-        obtainMethod: 'Diterbitkan oleh unit kerja/instansi pegawai',
-        templateUrl: '/templates/format-surat-pengantar.docx',
+        purpose: 'Membuktikan kompetensi pegawai untuk kenaikan jenjang jabatan fungsional',
+        obtainMethod: 'Diperoleh dari lembaga sertifikasi yang ditunjuk',
+        validityPeriod: 'Sesuai ketentuan masing-masing jabatan fungsional',
+        legalBasis: 'Permenpan No. 13 Tahun 2019 tentang Pengusulan, Penetapan, dan Pembinaan Jabatan Fungsional PNS',
         requirements: JSON.stringify([
-          'Ditandatangani oleh pimpinan unit kerja',
-          'Mencantumkan daftar pegawai yang diusulkan',
-          'Menggunakan kop surat resmi instansi',
-          'Mencantumkan nomor surat dan tanggal'
+          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
+          'Wajib bagi kenaikan pangkat ke golongan ruang III/a, III/c, IV/a, dan IV/d',
+          'Harus masih berlaku pada saat pengajuan'
         ]),
-        fillTips: 'Pastikan telah ditandatangani dan dicap resmi',
-        commonMistakes: 'Tidak mencantumkan daftar lengkap pegawai yang diusulkan'
+        fillTips: 'Pastikan sertifikat diterbitkan oleh lembaga yang diakui',
+        commonMistakes: 'Menggunakan sertifikat yang sudah tidak berlaku atau bukan dari lembaga yang diakui'
       }
     },
     {
-      code: 'surat-pernyataan-keabsahan',
-      name: 'Surat Pernyataan Keabsahan Dokumen',
-      description: 'Pernyataan tentang keabsahan dokumen yang dilampirkan',
+      code: 'sk-kenaikan-jabatan-fungsional',
+      name: 'SK Kenaikan Jabatan Fungsional',
+      description: 'SK Kenaikan Jabatan Fungsional untuk kenaikan pangkat tertentu',
+      isRequired: false,
+      hasSimASN: false,
+      detailInfo: {
+        purpose: 'Membuktikan kenaikan jenjang jabatan fungsional',
+        obtainMethod: 'Diterbitkan oleh pejabat pembina kepegawaian',
+        validityPeriod: 'Hingga ada perubahan jabatan',
+        legalBasis: 'Permenpan No. 13 Tahun 2019 tentang Pengusulan, Penetapan, dan Pembinaan Jabatan Fungsional PNS',
+        requirements: JSON.stringify([
+          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
+          'Wajib bagi kenaikan pangkat ke golongan ruang III/a, III/c, IV/a, dan IV/d',
+          'Pastikan terlihat dengan jelas nomor dan tanggal SK'
+        ]),
+        fillTips: 'Pastikan informasi jabatan fungsional sesuai dengan data kepegawaian terkini',
+        commonMistakes: 'Menggunakan SK yang tidak sesuai dengan kenaikan pangkat yang diajukan'
+      }
+    },
+    {
+      code: 'sk-jabatan-fungsional-alih-jenjang',
+      name: 'SK Jabatan Fungsional Alih Jenjang',
+      description: 'SK Jabatan Fungsional Alih Jenjang bagi PNS yang beralih jenjang dari Terampil ke Ahli',
+      isRequired: false,
+      hasSimASN: false,
+      detailInfo: {
+        purpose: 'Membuktikan alih jenjang jabatan fungsional dari Terampil ke Ahli',
+        obtainMethod: 'Diterbitkan oleh pejabat pembina kepegawaian',
+        validityPeriod: 'Hingga ada perubahan jabatan',
+        legalBasis: 'Permenpan No. 13 Tahun 2019 tentang Pengusulan, Penetapan, dan Pembinaan Jabatan Fungsional PNS',
+        requirements: JSON.stringify([
+          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
+          'Wajib bagi PNS yang beralih jenjang dari Terampil ke Ahli',
+          'Pastikan terlihat dengan jelas nomor dan tanggal SK'
+        ]),
+        fillTips: 'Pastikan SK mencantumkan informasi lengkap tentang alih jenjang',
+        commonMistakes: 'Menggunakan SK yang tidak secara spesifik menyebutkan alih jenjang dari Terampil ke Ahli'
+      }
+    },
+    {
+      code: 'pak-baru',
+      name: 'Asli PAK Baru',
+      description: 'Asli Penetapan Angka Kredit (PAK) baru yang merupakan kelanjutan dari PAK lama sampai dengan PAK terbaru',
       isRequired: true,
       hasSimASN: false,
       detailInfo: {
-        purpose: 'Memastikan pertanggungjawaban atas keabsahan dokumen yang diajukan',
-        obtainMethod: 'Dibuat oleh pegawai yang bersangkutan',
-        templateUrl: '/templates/format-surat-pernyataan-keabsahan.docx',
-        sampleUrl: '/samples/contoh-surat-pernyataan-keabsahan.pdf',
+        purpose: 'Membuktikan jumlah angka kredit terbaru yang dimiliki',
+        obtainMethod: 'Diterbitkan oleh tim penilai angka kredit',
+        validityPeriod: 'Hingga ada PAK baru',
+        legalBasis: 'Permenpan No. 13 Tahun 2019 tentang Pengusulan, Penetapan, dan Pembinaan Jabatan Fungsional PNS',
         requirements: JSON.stringify([
-          'Gunakan format yang telah ditentukan',
-          'Harus ditandatangani di atas materai',
-          'Cantumkan tanggal pembuatan'
+          'Harus dokumen asli',
+          'Ditandatangani oleh ketua tim penilai dan pejabat yang berwenang',
+          'Mencantumkan rincian perolehan angka kredit'
         ]),
-        fillTips: 'Pastikan semua dokumen yang dilampirkan tercantum dalam daftar',
-        commonMistakes: 'Tidak ditandatangani di atas materai atau menggunakan format yang salah'
+        fillTips: 'Pastikan PAK merupakan kelanjutan dari PAK sebelumnya dan mencakup periode yang relevan',
+        commonMistakes: 'Menggunakan fotokopi atau tidak menyertakan rincian perolehan angka kredit'
+      }
+    },
+    {
+      code: 'fotocopy-pak-lama',
+      name: 'Fotocopy Leges PAK Lama',
+      description: 'Fotocopy Leges PAK lama dengan angka kredit sesuai pada SK Kenaikan Pangkat Terakhir',
+      isRequired: true,
+      hasSimASN: false,
+      detailInfo: {
+        purpose: 'Membuktikan jumlah angka kredit pada kenaikan pangkat terakhir',
+        obtainMethod: 'Fotokopi dari dokumen PAK yang sesuai dengan SK Kenaikan Pangkat Terakhir',
+        validityPeriod: 'Selamanya',
+        legalBasis: 'Permenpan No. 13 Tahun 2019 tentang Pengusulan, Penetapan, dan Pembinaan Jabatan Fungsional PNS',
+        requirements: JSON.stringify([
+          'Fotokopi harus dilegalisir (leges) oleh pejabat yang berwenang',
+          'Angka kredit harus sesuai dengan yang tercantum pada SK Kenaikan Pangkat Terakhir',
+          'Pastikan terlihat dengan jelas nomor dan tanggal PAK'
+        ]),
+        fillTips: 'Pastikan legalisasi masih berlaku dan terlihat jelas',
+        commonMistakes: 'Menggunakan PAK yang tidak sesuai dengan SK Kenaikan Pangkat Terakhir atau tidak dilegalisir'
+      }
+    },
+    {
+      code: 'sertifikat-uji-kompetensi-inpassing',
+      name: 'Sertifikat Uji Kompetensi Inpassing',
+      description: 'Sertifikasi Uji Kompetensi berikut Rekomendasi Pengangkatan dalam Jabatan Fungsional melalui Inpassing',
+      isRequired: false,
+      hasSimASN: false,
+      detailInfo: {
+        purpose: 'Membuktikan kompetensi pegawai yang diangkat melalui jalur inpassing',
+        obtainMethod: 'Diperoleh dari lembaga sertifikasi yang ditunjuk',
+        validityPeriod: 'Sesuai ketentuan masing-masing jabatan fungsional',
+        legalBasis: 'Permenpan tentang Pengangkatan PNS dalam Jabatan Fungsional melalui Penyesuaian/Inpassing',
+        requirements: JSON.stringify([
+          'Fotokopi harus dilegalisir oleh pejabat yang berwenang',
+          'Sertakan rekomendasi pengangkatan dalam jabatan fungsional',
+          'Wajib bagi PNS yang pengangkatan fungsionalnya melalui inpassing dan baru pertama kali diusulkan kenaikan pangkat fungsional'
+        ]),
+        fillTips: 'Pastikan sertifikat diterbitkan oleh lembaga yang diakui',
+        commonMistakes: 'Tidak menyertakan rekomendasi pengangkatan atau menggunakan sertifikat yang tidak valid'
       }
     }
   ]
@@ -273,32 +333,50 @@ async function main() {
 
     // Create detailed info if provided
     if (doc.detailInfo) {
-      await prisma.detailedDocumentInfo.upsert({
-        where: { documentReqId: requirement.id },
-        update: {
-          purpose: doc.detailInfo.purpose,
-          obtainMethod: doc.detailInfo.obtainMethod,
-          validityPeriod: doc.detailInfo.validityPeriod,
-          legalBasis: doc.detailInfo.legalBasis,
-          templateUrl: doc.detailInfo.templateUrl,
-          sampleUrl: doc.detailInfo.sampleUrl,
-          requirements: doc.detailInfo.requirements,
-          fillTips: doc.detailInfo.fillTips,
-          commonMistakes: doc.detailInfo.commonMistakes
-        },
-        create: {
-          documentReqId: requirement.id,
-          purpose: doc.detailInfo.purpose,
-          obtainMethod: doc.detailInfo.obtainMethod,
-          validityPeriod: doc.detailInfo.validityPeriod,
-          legalBasis: doc.detailInfo.legalBasis,
-          templateUrl: doc.detailInfo.templateUrl,
-          sampleUrl: doc.detailInfo.sampleUrl,
-          requirements: doc.detailInfo.requirements,
-          fillTips: doc.detailInfo.fillTips,
-          commonMistakes: doc.detailInfo.commonMistakes
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const baseData: Record<string, any> = {
+        purpose: doc.detailInfo.purpose || null,
+        obtainMethod: doc.detailInfo.obtainMethod || null,
+        validityPeriod: doc.detailInfo.validityPeriod || null,
+        legalBasis: doc.detailInfo.legalBasis || null,
+        fillTips: doc.detailInfo.fillTips || null,
+        commonMistakes: doc.detailInfo.commonMistakes || null,
+      };
+      
+      // Tambahkan properti opsional
+      if ('templateUrl' in doc.detailInfo && typeof doc.detailInfo.templateUrl === 'string') {
+        baseData.templateUrl = doc.detailInfo.templateUrl;
+      }
+      
+      if ('sampleUrl' in doc.detailInfo && typeof doc.detailInfo.sampleUrl === 'string') {
+        baseData.sampleUrl = doc.detailInfo.sampleUrl;
+      }
+      
+      // Handle requirements dengan JSON parsing yang tepat
+      if ('requirements' in doc.detailInfo && doc.detailInfo.requirements) {
+        if (typeof doc.detailInfo.requirements === 'string') {
+          try {
+            baseData.requirements = JSON.parse(doc.detailInfo.requirements);
+          } catch (e) {
+            console.error(`Failed to parse requirements JSON for ${doc.code}:`, e);
+          }
+        } else {
+          baseData.requirements = doc.detailInfo.requirements;
         }
-      })
+      }
+      
+      try {
+        await prisma.detailedDocumentInfo.upsert({
+          where: { documentReqId: requirement.id },
+          update: baseData,
+          create: {
+            ...baseData,
+            documentReqId: requirement.id
+          }
+        });
+      } catch (error) {
+        console.error(`Error upserting detail for ${doc.code}:`, error);
+      }
     }
 
     console.log(`Created document requirement: ${doc.name}`)

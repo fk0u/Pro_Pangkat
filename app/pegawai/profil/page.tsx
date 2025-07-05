@@ -13,6 +13,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { User, Edit, Save, Camera, CheckCircle, AlertCircle } from "lucide-react"
 
+// Helper function to safely get string values from potentially complex objects
+const safeGetString = (value: any): string => {
+  if (value === null || value === undefined) return ""
+  if (typeof value === "string") return value
+  if (typeof value === "object" && value !== null) {
+    // If it's an object, try to get the 'nama' property, or stringify if that fails
+    return value.nama || value.name || ""
+  }
+  return String(value)
+}
+
 export default function ProfilPage() {
   const { toast } = useToast()
   const [isEditing, setIsEditing] = useState(false)
@@ -23,7 +34,7 @@ export default function ProfilPage() {
     nip: "",
     perangkatDaerah: "",
     golongan: "",
-    tmtGolongan: "",
+    tmtJabatan: "",
     jabatan: "",
     jenisJabatan: "",
     email: "",
@@ -34,6 +45,7 @@ export default function ProfilPage() {
 
   useEffect(() => {
     fetchProfileData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchProfileData = async () => {
@@ -45,18 +57,28 @@ export default function ProfilPage() {
         const data = await response.json()
         console.log('Profile API Response:', data) // Debug log
         
+        // Process TMT Jabatan field
+        let formattedTmtJabatan = "";
+        try {
+          if (data.tmtJabatan) {
+            formattedTmtJabatan = new Date(data.tmtJabatan).toISOString().split('T')[0];
+          }
+        } catch (error) {
+          console.error("Error formatting tmtJabatan:", error);
+        }
+        
         setProfileData({
-          namaLengkap: data.name || "",
-          nip: data.nip || "",
-          perangkatDaerah: data.unitKerja || "",
-          golongan: data.golongan || "",
-          tmtGolongan: data.tmtGolongan ? new Date(data.tmtGolongan).toISOString().split('T')[0] : "",
-          jabatan: data.jabatan || "",
-          jenisJabatan: data.jenisJabatan || "",
-          email: data.email || "",
-          telepon: data.phone || "",
-          alamat: data.address || "",
-          wilayah: data.wilayah || "",
+          namaLengkap: safeGetString(data.name),
+          nip: safeGetString(data.nip),
+          perangkatDaerah: safeGetString(data.unitKerja),
+          golongan: safeGetString(data.golongan),
+          tmtJabatan: formattedTmtJabatan,
+          jabatan: safeGetString(data.jabatan),
+          jenisJabatan: safeGetString(data.jenisJabatan),
+          email: safeGetString(data.email),
+          telepon: safeGetString(data.phone),
+          alamat: safeGetString(data.address),
+          wilayah: safeGetString(data.wilayah),
         })
         
         if (data.profilePictureUrl) {
@@ -114,25 +136,46 @@ export default function ProfilPage() {
         return
       }
 
+      // Validate TMT Jabatan format (YYYY-MM-DD)
+      if (profileData.tmtJabatan) {
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(profileData.tmtJabatan)) {
+          toast({
+            title: "Format TMT Jabatan tidak valid",
+            description: "Gunakan format Tahun-Bulan-Tanggal (YYYY-MM-DD)",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
       setIsLoading(true);
       
+      // Siapkan data untuk dikirim ke API
       const updateData = {
         name: profileData.namaLengkap,
-        email: profileData.email,
-        phone: profileData.telepon,
-        address: profileData.alamat,
-        jabatan: profileData.jabatan,
-        jenisJabatan: profileData.jenisJabatan,
-        unitKerja: profileData.perangkatDaerah,
-        tmtGolongan: profileData.tmtGolongan,
+        email: profileData.email || "",
+        phone: profileData.telepon || "",
+        address: profileData.alamat || "",
+        jabatan: profileData.jabatan || "",
+        jenisJabatan: profileData.jenisJabatan || "",
+        unitKerja: profileData.perangkatDaerah || "", // Backend akan menghandle ini dengan benar
+        tmtJabatan: profileData.tmtJabatan || null, // Allow null if empty
       }
+
+      // Filter out null or undefined values to prevent API errors
+      const cleanedUpdateData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, value]) => value !== null && value !== undefined)
+      );
+
+      console.log("Sending profile update:", cleanedUpdateData); // Debug log to see what's being sent
 
       const response = await fetch("/api/pegawai/profile", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(updateData),
+        body: JSON.stringify(cleanedUpdateData),
       })
 
       if (response.ok) {
@@ -146,13 +189,14 @@ export default function ProfilPage() {
         // Update local state with response data
         setProfileData(prev => ({
           ...prev,
-          namaLengkap: updatedData.name || prev.namaLengkap,
-          email: updatedData.email || prev.email,
-          telepon: updatedData.phone || prev.telepon,
-          alamat: updatedData.address || prev.alamat,
-          jabatan: updatedData.jabatan || prev.jabatan,
-          jenisJabatan: updatedData.jenisJabatan || prev.jenisJabatan,
-          perangkatDaerah: updatedData.unitKerja || prev.perangkatDaerah,
+          namaLengkap: safeGetString(updatedData.name),
+          email: safeGetString(updatedData.email),
+          telepon: safeGetString(updatedData.phone),
+          alamat: safeGetString(updatedData.address),
+          jabatan: safeGetString(updatedData.jabatan),
+          jenisJabatan: safeGetString(updatedData.jenisJabatan),
+          perangkatDaerah: safeGetString(updatedData.unitKerja),
+          tmtJabatan: updatedData.tmtJabatan ? new Date(updatedData.tmtJabatan).toISOString().split('T')[0] : "",
         }))
       } else {
         const errorData = await response.json();
@@ -375,24 +419,18 @@ export default function ProfilPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="tmtGolongan">TMT Golongan</Label>
+                      <Label htmlFor="tmtJabatan">TMT Jabatan</Label>
                       <Input
-                        id="tmtGolongan"
+                        id="tmtJabatan"
                         type="date"
-                        value={profileData.tmtGolongan}
-                        onChange={(e) => setProfileData({ ...profileData, tmtGolongan: e.target.value })}
+                        placeholder="YYYY-MM-DD"
+                        value={profileData.tmtJabatan}
+                        onChange={(e) => setProfileData({ ...profileData, tmtJabatan: e.target.value })}
                         disabled={!isEditing}
                       />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="jabatan">Jabatan</Label>
-                      <Input
-                        id="jabatan"
-                        value={profileData.jabatan}
-                        onChange={(e) => setProfileData({ ...profileData, jabatan: e.target.value })}
-                        disabled={!isEditing}
-                      />
+                      <p className="text-xs text-gray-500">
+                        Format: Tahun-Bulan-Tanggal (contoh: 2025-07-04)
+                      </p>
                     </div>
 
                     <div className="space-y-2">
