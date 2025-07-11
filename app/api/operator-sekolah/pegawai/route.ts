@@ -58,19 +58,25 @@ export async function GET(request: NextRequest) {
     const search = url.searchParams.get('search') || ''
     const page = parseInt(url.searchParams.get('page') || '1')
     const limit = parseInt(url.searchParams.get('limit') || '10')
+    const statusParam = url.searchParams.get('status') || ''
     const offset = (page - 1) * limit
 
     // Build where clause
-    const whereClause = {
-      role: "PEGAWAI" as const,
+    // Build where clause with optional search and status filters
+    const whereClause: Record<string, unknown> = {
+      role: "PEGAWAI",
       unitKerjaId: unitKerjaId,
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { nip: { contains: search, mode: 'insensitive' as const } },
-          { jabatan: { contains: search, mode: 'insensitive' as const } },
-        ]
-      })
+    }
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { nip: { contains: search, mode: 'insensitive' as const } },
+        { jabatan: { contains: search, mode: 'insensitive' as const } },
+      ]
+    }
+    // Apply status filter if provided
+    if (statusParam && statusParam !== 'all') {
+      whereClause.jenisJabatan = statusParam
     }
 
     // Get all pegawai in the same unit kerja with pagination
@@ -153,11 +159,18 @@ export async function POST(request: NextRequest) {
     // Get user's unit kerja
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { unitKerja: true, wilayah: true }
+      select: { unitKerja: true, unitKerjaId: true, wilayah: true }
     })
 
-    if (!user?.unitKerja) {
-      return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
+    // Cari unitKerjaId jika belum ada
+    let unitKerjaId = user?.unitKerjaId || null;
+    if (!unitKerjaId && user?.unitKerja) {
+      const unitKerjaObj = await prisma.unitKerja.findFirst({ where: { nama: user.unitKerja }, select: { id: true } });
+      unitKerjaId = unitKerjaObj?.id || null;
+    }
+
+    if (!unitKerjaId) {
+      return NextResponse.json({ message: 'Unit kerja tidak valid, silakan cek data operator sekolah.' }, { status: 400 })
     }
 
     // Check if NIP already exists
@@ -174,12 +187,19 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await hashPassword(defaultPassword)
 
     // Create new pegawai
+    console.log('Creating pegawai with data:', {
+      ...data,
+      role: 'PEGAWAI',
+      unitKerjaId,
+      wilayah: user.wilayah,
+      tmtGolongan: tmtGolongan
+    });
     const newPegawai = await prisma.user.create({
       data: {
         ...data,
         password: hashedPassword,
         role: 'PEGAWAI',
-        unitKerja: user.unitKerja,
+        unitKerjaId: unitKerjaId,
         wilayah: user.wilayah,
         tmtGolongan: tmtGolongan ? new Date(tmtGolongan) : null,
         mustChangePassword: true
@@ -196,6 +216,7 @@ export async function POST(request: NextRequest) {
         phone: true,
         address: true,
         unitKerja: true,
+        unitKerjaId: true,
         createdAt: true
       }
     })
@@ -217,10 +238,12 @@ export async function POST(request: NextRequest) {
       message: 'Pegawai berhasil ditambahkan',
       pegawai: newPegawai 
     }, { status: 201 })
-  } catch (error) {
+  } catch (error: unknown) {
+    // Detailed error logging and response
     console.error('Create pegawai error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: errorMessage },
       { status: 500 }
     )
   }

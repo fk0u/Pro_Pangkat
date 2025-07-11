@@ -44,6 +44,7 @@ export default function PegawaiPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [perPage, setPerPage] = useState(10)
   
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -244,7 +245,7 @@ export default function PegawaiPage() {
       
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: "10",
+        limit: perPage.toString(),
         ...(searchTerm && { search: searchTerm }),
         ...(statusFilter !== "all" && { status: statusFilter })
       })
@@ -290,7 +291,7 @@ export default function PegawaiPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, searchTerm, statusFilter, toast])
+  }, [currentPage, searchTerm, statusFilter, perPage, toast])
 
   // Load data saat komponen dimount dan filter berubah
   useEffect(() => {
@@ -535,6 +536,34 @@ export default function PegawaiPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Show range and per-page selector */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            Showing {(currentPage - 1) * perPage + 1} to {Math.min(currentPage * perPage, totalCount)} of {totalCount}
+          </div>
+          <div className="flex items-center space-x-2">
+            <span>Show</span>
+            <Select value={perPage.toString()} onValueChange={val => { setPerPage(Number(val)); setCurrentPage(1); }} className="w-20">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10,20,50,100].map(n => (
+                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>per page</span>
+          </div>
+        </div>
+
+        {/* Pagination buttons */}
+        <div className="flex items-center justify-end space-x-2 py-4">
+          <Button disabled={currentPage === 1} onClick={() => setCurrentPage(page => page - 1)}>Previous</Button>
+          <span>Page {currentPage} of {Math.ceil(totalCount / perPage)}</span>
+          <Button disabled={currentPage >= Math.ceil(totalCount / perPage)} onClick={() => setCurrentPage(page => page + 1)}>Next</Button>
+        </div>
 
         {/* Modal Tambah Pegawai */}
         <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>

@@ -98,11 +98,11 @@ export async function PUT(request: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
     if (session.user.role !== 'OPERATOR_SEKOLAH') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -117,7 +117,7 @@ export async function PUT(request: NextRequest) {
     // Validasi data yang diperlukan
     if (!nama?.trim()) {
       return NextResponse.json(
-        { error: 'Nama wajib diisi' },
+        { message: 'Nama wajib diisi' },
         { status: 400 }
       )
     }
@@ -125,7 +125,7 @@ export async function PUT(request: NextRequest) {
     // Validasi email jika diisi
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
-        { error: 'Format email tidak valid' },
+        { message: 'Format email tidak valid' },
         { status: 400 }
       )
     }
@@ -224,14 +224,14 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         )
       }
-      return NextResponse.json(
-        { error: 'Database error occurred' },
-        { status: 500 }
-      )
+    return NextResponse.json(
+      { message: 'Database error occurred' },
+      { status: 500 }
+    )
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { message: 'Internal server error' },
       { status: 500 }
     )
   }

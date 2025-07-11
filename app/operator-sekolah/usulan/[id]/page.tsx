@@ -270,11 +270,11 @@ export default function UsulanDetailPage() {
             <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
           </Button>
           <div className="flex gap-2">
-            {/* Show action buttons for proposals waiting for school operator confirmation */}
-            {usulan.status === "SUBMITTED" || 
-              usulan.status === "PENDING" || 
-              usulan.status === "MENUNGGU_VERIFIKASI_SEKOLAH" || 
-              usulan.status === "MENUNGGU_KONFIRMASI" ? (
+            {/* Show action buttons only for school operator before forwarding to dinas */}
+            {(
+              (usulan.status === "SUBMITTED" || usulan.status === "PENDING" || usulan.status === "MENUNGGU_VERIFIKASI_SEKOLAH" || usulan.status === "MENUNGGU_KONFIRMASI")
+              && usulan.status !== "MENUNGGU_VERIFIKASI_DINAS"
+            ) ? (
               <>
                 <Button 
                   variant="destructive" 
@@ -282,13 +282,6 @@ export default function UsulanDetailPage() {
                   className="gap-1"
                 >
                   <XCircle className="h-4 w-4" /> Tolak
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                  onClick={() => handleProcessUsulan('RETURN')}
-                >
-                  <AlertTriangle className="h-4 w-4 mr-1" /> Kembalikan
                 </Button>
                 <Button 
                   variant="default" 

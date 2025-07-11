@@ -8,11 +8,11 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
     if (session.user.role !== 'OPERATOR_SEKOLAH') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -21,21 +21,21 @@ export async function POST(request: NextRequest) {
     // Validasi input
     if (!currentPassword || !newPassword || !confirmPassword) {
       return NextResponse.json(
-        { error: 'Semua field wajib diisi' },
+        { message: 'Semua field wajib diisi' },
         { status: 400 }
       )
     }
 
     if (newPassword.length < 6) {
       return NextResponse.json(
-        { error: 'Password baru minimal 6 karakter' },
+        { message: 'Password baru minimal 6 karakter' },
         { status: 400 }
       )
     }
 
     if (newPassword !== confirmPassword) {
       return NextResponse.json(
-        { error: 'Konfirmasi password tidak cocok' },
+        { message: 'Konfirmasi password tidak cocok' },
         { status: 400 }
       )
     }
@@ -52,14 +52,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return NextResponse.json({ message: 'User not found' }, { status: 404 })
     }
 
     // Verifikasi password saat ini
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password)
     if (!isCurrentPasswordValid) {
       return NextResponse.json(
-        { error: 'Password saat ini tidak valid' },
+        { message: 'Password saat ini tidak valid' },
         { status: 400 }
       )
     }
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const isSamePassword = await bcrypt.compare(newPassword, user.password)
     if (isSamePassword) {
       return NextResponse.json(
-        { error: 'Password baru harus berbeda dengan password saat ini' },
+        { message: 'Password baru harus berbeda dengan password saat ini' },
         { status: 400 }
       )
     }

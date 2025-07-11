@@ -35,20 +35,13 @@ interface Usulan {
   unitKerja: string
   tanggalUsulan: string
   status: "menunggu_verifikasi" | "sedang_diproses" | "disetujui" | "ditolak" | "butuh_perbaikan" | "ditarik"
+  rawStatus: string
   keterangan?: string
   dokumenLengkap: boolean
   createdAt: string
   updatedAt: string
 }
 
-interface Document {
-  id: string;
-  fileName: string;
-  documentType: string;
-  status: string;
-  previewUrl: string;
-  downloadUrl: string;
-}
 
 const getStatusBadge = (status: string) => {
   const statusConfig = {
@@ -120,8 +113,10 @@ export default function OperatorSekolahUsulanPage() {
       
       if (response.ok) {
         const data = await response.json()
-        const transformedData = data.usulan
-          .map((item: any) => ({
+        // Disable lint for explicit any
+        // Map API response; disable explicit any lint for this line
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const transformedData = (data.usulan as any[]).map((item: any) => ({
             id: item.id,
             nip: item.pegawai?.nip || '',
             nama: item.pegawai?.name || '',
@@ -135,6 +130,7 @@ export default function OperatorSekolahUsulanPage() {
                 : '',
             tanggalUsulan: item.createdAt ? new Date(item.createdAt).toLocaleDateString('id-ID') : '',
             status: mapApiStatusToLocal(item.status),
+            rawStatus: item.status,
             keterangan: item.notes || '',
             dokumenLengkap: (item.documents || []).length > 0,
             createdAt: item.createdAt,
@@ -216,10 +212,6 @@ export default function OperatorSekolahUsulanPage() {
     setFilteredData(filtered)
   }, [usulanData, searchQuery, statusFilter])
 
-  const handleViewUsulan = (usulan: Usulan) => {
-    setSelectedUsulan(usulan)
-    setIsViewModalOpen(true)
-  }
 
   const getStatsData = () => {
     const stats = {
@@ -526,7 +518,7 @@ export default function OperatorSekolahUsulanPage() {
                               <Eye className="h-4 w-4 mr-1" />
                               Detail
                             </Button>
-                            {(usulan.status === 'menunggu_verifikasi') && (
+                            {(usulan.status === 'menunggu_verifikasi' && usulan.rawStatus !== 'MENUNGGU_VERIFIKASI_DINAS') && (
                               <>
                                 <Button
                                   variant="destructive"
