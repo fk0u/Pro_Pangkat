@@ -13,36 +13,75 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { period, format = 'excel' } = body
 
-    // Get user's unit kerja
+    // Get user's unit kerja for filtering
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { unitKerja: true, name: true }
+      select: { unitKerja: true, unitKerjaId: true, name: true }
     })
 
-    if (!user?.unitKerja) {
-      return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
+    if (!user) {
+      return NextResponse.json({ message: 'User not found' }, { status: 400 })
+    }
+    
+    // Handle both string and object unitKerja formats
+    let unitKerjaId = user.unitKerjaId
+    const unitKerjaNama = typeof user.unitKerja === 'string' ? user.unitKerja : 
+                        typeof user.unitKerja === 'object' && user.unitKerja !== null ? 
+                        (user.unitKerja as Record<string, any>).nama || null : null
+
+    console.log('Export - User unit kerja info:', { 
+      unitKerjaId, 
+      unitKerjaNama,
+      unitKerjaType: typeof user.unitKerja,
+      unitKerja: user.unitKerja 
+    })
+
+    // If we don't have a unitKerjaId but we have the object, extract the ID
+    if (!unitKerjaId && typeof user.unitKerja === 'object' && user.unitKerja !== null && 'id' in user.unitKerja) {
+      unitKerjaId = (user.unitKerja as Record<string, any>).id
+    }
+
+    if (!unitKerjaId && !unitKerjaNama) {
+      return NextResponse.json({ message: 'Unit kerja information not found' }, { status: 400 })
+    }
+
+    // Build date filter based on period
+    const currentYear = parseInt(period) || new Date().getFullYear()
+    
+    const dateFilter = {
+      gte: new Date(`${currentYear}-01-01`),
+      lt: new Date(`${currentYear + 1}-01-01`)
+    }
+
+    // Build where clause for proposals - use unitKerjaId if available, otherwise use name
+    const whereClause = {
+      pegawai: unitKerjaId ? {
+        unitKerjaId
+      } : {
+        unitKerja: {
+          nama: unitKerjaNama
+        }
+      },
+      createdAt: dateFilter,
+      // Exclude withdrawn (DITARIK) proposals and DRAFT status (incomplete data)
+      status: {
+        not: {
+          in: ['DITARIK', 'DRAFT']
+        }
+      }
     }
 
     // Get promotion proposals data
     const usulan = await prisma.promotionProposal.findMany({
-      where: {
-        pegawai: {
-          unitKerja: user.unitKerja
-        },
-        ...(period && period !== 'all' ? {
-          createdAt: {
-            gte: new Date(`${period}-01-01`),
-            lt: new Date(`${parseInt(period) + 1}-01-01`)
-          }
-        } : {})
-      },
+      where: whereClause,
       include: {
         pegawai: {
           select: {
             name: true,
             nip: true,
             jabatan: true,
-            golongan: true
+            golongan: true,
+            unitKerja: true
           }
         }
       },
@@ -51,13 +90,14 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Get statistics for summary
+    // Get status statistics for summary
     const stats = {
       total: usulan.length,
-      pending: usulan.filter(u => u.status === 'PENDING').length,
-      disetujui: usulan.filter(u => u.status === 'APPROVED').length,
-      ditolak: usulan.filter(u => u.status === 'REJECTED').length,
-      diproses: usulan.filter(u => u.status === 'PROCESSING').length
+      pending: usulan.filter(u => ['MENUNGGU_VERIFIKASI_SEKOLAH', 'MENUNGGU_VERIFIKASI_DINAS', 'MENUNGGU_KONFIRMASI', 'SUBMITTED', 'PENDING'].includes(u.status)).length,
+      disetujui: usulan.filter(u => u.status === 'SELESAI').length,
+      ditolak: usulan.filter(u => ['DITOLAK', 'DITOLAK_SEKOLAH', 'DITOLAK_DINAS', 'DITOLAK_ADMIN'].includes(u.status)).length,
+      diproses: usulan.filter(u => ['DIPROSES_OPERATOR', 'DIPROSES_ADMIN', 'DISETUJUI_OPERATOR', 'DISETUJUI_SEKOLAH'].includes(u.status)).length,
+      // We're already excluding DRAFT status in the query, so we don't need to count it here
     }
 
     if (format === 'pdf') {
@@ -68,7 +108,7 @@ export async function POST(request: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Content-Disposition': `attachment; filename="laporan-usulan-${user.unitKerja.replace(/\s+/g, '-')}-${period || 'semua'}.html"`
+          'Content-Disposition': `attachment; filename="laporan-usulan-${(unitKerjaNama || 'semua').replace(/\s+/g, '-')}-${period || 'semua'}.html"`
         }
       })
     } else {
@@ -79,7 +119,7 @@ export async function POST(request: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="laporan-usulan-${user.unitKerja.replace(/\s+/g, '-')}-${period || 'semua'}.csv"`
+          'Content-Disposition': `attachment; filename="laporan-usulan-${(unitKerjaNama || 'semua').replace(/\s+/g, '-')}-${period || 'semua'}.csv"`
         }
       })
     }
@@ -454,11 +494,28 @@ function generatePDFContent(unitKerja: string, period: string | undefined, usula
 }
 
 function getStatusText(status: string): string {
-  switch (status) {
-    case 'PENDING': return 'Menunggu'
-    case 'PROCESSING': return 'Diproses'
-    case 'APPROVED': return 'Disetujui'
-    case 'REJECTED': return 'Ditolak'
-    default: return status
+  // Status mapping
+  const statusMap: Record<string, string> = {
+    'SELESAI': 'Selesai',
+    'DIPROSES_OPERATOR': 'Sedang Diproses',
+    'DIPROSES_ADMIN': 'Sedang Diproses', 
+    'MENUNGGU_VERIFIKASI_SEKOLAH': 'Menunggu Verifikasi',
+    'MENUNGGU_VERIFIKASI_DINAS': 'Menunggu Verifikasi',
+    'DITOLAK': 'Ditolak',
+    'DITOLAK_SEKOLAH': 'Ditolak',
+    'DITOLAK_DINAS': 'Ditolak',
+    'DITOLAK_ADMIN': 'Ditolak',
+    'DISETUJUI_OPERATOR': 'Sedang Diproses',
+    'DISETUJUI_SEKOLAH': 'Sedang Diproses',
+    'MENUNGGU_KONFIRMASI': 'Menunggu Verifikasi',
+    'SUBMITTED': 'Menunggu Verifikasi',
+    'PENDING': 'Menunggu Verifikasi',
+    'DRAFT': 'Menunggu Verifikasi',
+    'DITARIK': 'Ditarik',
+    'APPROVED': 'Disetujui',
+    'REJECTED': 'Ditolak',
+    'PROCESSING': 'Sedang Diproses'
   }
+  
+  return statusMap[status] || status
 }

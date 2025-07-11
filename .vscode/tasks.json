@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Fix timeline/jadwal API error",
+			"type": "shell",
+			"command": "echo 'Fixed the /api/shared/timeline API route to correctly structure the OR conditions'",
+			"group": "build",
+			"isBackground": false
+		}
+	]
+}

@@ -25,7 +25,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { 
   Eye, 
   Search, 
-  Filter, 
   RefreshCw, 
   FileText, 
   CheckCircle, 
@@ -45,39 +44,25 @@ interface Usulan {
   pegawai: {
     id: string;
     name: string;
+    nama: string;
     nip?: string;
     jabatan?: string;
     golongan?: string;
-    currentRank?: string;
-    targetRank?: string;
-    unitKerja?: { 
+    targetGolongan?: string;
+    unitKerja?: string;
+    wilayah?: {
       id: string;
       name: string;
-      type: string;
-      code: string;
-      wilayah?: {
-        id: string;
-        name: string;
-        type: string;
-      }
     } | null;
+    tmtGolongan?: Date;
   };
   status: string;
+  statusText?: string;
   notes?: string;
+  periode?: string;
   createdAt: string;
   updatedAt: string;
   submissionDate?: string;
-  documents?: {
-    id: string;
-    name: string;
-    fileName?: string;
-    fileUrl: string;
-    fileType?: string;
-    fileSize?: number;
-    status?: string;
-    notes?: string;
-    uploadedAt?: string;
-  }[];
   timeline?: {
     id: string;
     title: string;
@@ -85,12 +70,24 @@ interface Usulan {
     endDate: string;
     description?: string;
   };
+  dokumen?: {
+    id: string;
+    name: string;
+    fileName?: string;
+    fileUrl?: string;
+    fileId?: string;
+    fileType?: string;
+    fileSize?: number;
+    status?: string;
+    notes?: string;
+    uploadedAt?: string;
+    documentType?: string;
+  }[];
 }
 
 export default function KelolaPengajuanPage() {
   const { toast } = useToast()
   const [usulanList, setUsulanList] = useState<Usulan[]>([])
-  const [filteredList, setFilteredList] = useState<Usulan[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [selectedUsulan, setSelectedUsulan] = useState<Usulan | null>(null)
@@ -100,33 +97,107 @@ export default function KelolaPengajuanPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
+  const [activeTab, setActiveTab] = useState("inbox") // inbox or documents
   const itemsPerPage = 10
 
   // Fetch usulan data
   const fetchUsulan = async (page = 1) => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/admin/usulan?page=${page}&limit=${itemsPerPage}${statusFilter ? `&status=${statusFilter}` : ''}${searchQuery ? `&search=${searchQuery}` : ''}`)
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: itemsPerPage.toString()
+      });
       
-      if (!response.ok) {
-        throw new Error("Failed to fetch data")
+      if (statusFilter) {
+        queryParams.append('status', statusFilter);
       }
       
-      const data = await response.json()
-      setUsulanList(data.data || [])
-      setFilteredList(data.data || [])
-      setTotalPages(data.pagination?.totalPages || 1)
-      setTotalItems(data.pagination?.total || 0)
-      setCurrentPage(page)
+      if (searchQuery && searchQuery.trim() !== "") {
+        queryParams.append('search', searchQuery);
+      }
+      
+      // If in inbox mode, add inbox parameter
+      if (activeTab === "inbox") {
+        queryParams.append('inbox', 'true');
+      }
+      
+      console.log("Fetching data with params:", queryParams.toString());
+      const response = await fetch(`/api/admin/usulan?${queryParams.toString()}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API Error (${response.status}):`, errorText);
+        throw new Error(`Failed to fetch data: ${response.status} ${errorText.substring(0, 100)}`);
+      }
+      
+      const data = await response.json();
+      
+      // More robust response handling to support different API response formats
+      if (!data || data.status === "error") {
+        console.error("API returned error:", data);
+        throw new Error(data?.message || "API mengembalikan status error");
+      }
+      
+      // Handle different response formats more gracefully
+      let usulanData = [];
+      let pagination = { total: 0, totalPages: 1 };
+      
+      if (data.status === "success") {
+        if (Array.isArray(data.data)) {
+          usulanData = data.data;
+        } else if (data.data && Array.isArray(data.data.data)) {
+          usulanData = data.data.data;
+        } else if (data.data && data.data.data === undefined) {
+          usulanData = data.data;
+        } else {
+          usulanData = [];
+        }
+        
+        pagination = data.pagination || pagination;
+      } else if (Array.isArray(data)) {
+        // Direct array response
+        usulanData = data;
+      } else {
+        console.warn("Unexpected response format:", data);
+        usulanData = [];
+      }
+      
+      console.log("Processed usulan data:", { 
+        count: usulanData.length, 
+        pagination,
+        sample: usulanData[0] 
+      });
+      
+      setUsulanList(usulanData);
+      setTotalPages(pagination.totalPages || 1);
+      setTotalItems(pagination.total || usulanData.length);
+      setCurrentPage(page);
     } catch (error) {
-      console.error("Error fetching usulan:", error)
+      console.error("Error fetching usulan:", error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Terjadi kesalahan tidak dikenal";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("Failed to fetch")) {
+          errorMessage = "Gagal menghubungi server. Periksa koneksi internet Anda.";
+        } else if (error.message.includes("API mengembalikan status error")) {
+          errorMessage = "Server mengembalikan error. Silakan coba beberapa saat lagi.";
+        } else if (error.message.includes("Invalid data format")) {
+          errorMessage = "Format data tidak valid. Silakan refresh halaman.";
+        } else {
+          errorMessage = `Gagal memuat data usulan: ${error.message}`;
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Gagal memuat data usulan. Silakan coba lagi.",
+        title: "Gagal Memuat Data",
+        description: errorMessage,
         variant: "destructive"
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -144,7 +215,7 @@ export default function KelolaPengajuanPage() {
   // Apply filters when they change
   useEffect(() => {
     fetchUsulan(1) // Reset to first page when filters change
-  }, [statusFilter, searchQuery]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [statusFilter, searchQuery, activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset filters
   const resetFilters = () => {
@@ -186,13 +257,6 @@ export default function KelolaPengajuanPage() {
 
       // Update local state
       setUsulanList(prev => 
-        prev.map(item => 
-          item.id === selectedUsulan.id 
-            ? { ...item, status: "DISETUJUI_ADMIN" } 
-            : item
-        )
-      )
-      setFilteredList(prev => 
         prev.map(item => 
           item.id === selectedUsulan.id 
             ? { ...item, status: "DISETUJUI_ADMIN" } 
@@ -247,13 +311,6 @@ export default function KelolaPengajuanPage() {
 
       // Update local state
       setUsulanList(prev => 
-        prev.map(item => 
-          item.id === selectedUsulan.id 
-            ? { ...item, status: "DITOLAK" } 
-            : item
-        )
-      )
-      setFilteredList(prev => 
         prev.map(item => 
           item.id === selectedUsulan.id 
             ? { ...item, status: "DITOLAK" } 
@@ -320,11 +377,182 @@ export default function KelolaPengajuanPage() {
   return (
     <DashboardLayout userType="admin">
       <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Pengelolaan Usulan Kenaikan Pangkat</h1>
+        </div>
+        
+        <Tabs defaultValue="inbox" value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="inbox">Inbox Usulan</TabsTrigger>
+            <TabsTrigger value="documents">Kelola Dokumen</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="inbox" className="space-y-4 mt-4">
+            <div className="flex flex-col md:flex-row gap-4 flex-wrap">
+              <Card className="flex-1 min-w-[200px]">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Perlu Diproses</p>
+                      <p className="text-2xl font-bold">{
+                        usulanList.filter(u => u.status === "DISETUJUI_OPERATOR").length
+                      }</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                      <FileText className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="flex-1 min-w-[200px]">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Sedang Diproses</p>
+                      <p className="text-2xl font-bold">{
+                        usulanList.filter(u => u.status === "DIPROSES_ADMIN").length
+                      }</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                      <RefreshCw className="h-6 w-6 text-yellow-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="flex-1 min-w-[200px]">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Disetujui</p>
+                      <p className="text-2xl font-bold">{
+                        usulanList.filter(u => u.status === "SELESAI" || u.status === "DISETUJUI_ADMIN").length
+                      }</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="documents" className="mt-4">
+            <Card>
+              <CardHeader className="bg-slate-50 dark:bg-slate-800">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Pengelolaan Dokumen Usulan
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <p className="text-muted-foreground mb-4">
+                  Pada halaman ini Anda dapat memeriksa dan memverifikasi dokumen-dokumen yang diajukan.
+                </p>
+                
+                {/* Document Management Section */}
+                <div className="space-y-4">
+                  {/* Search and Filter for Documents */}
+                  <div className="flex gap-4 items-center">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Cari dokumen berdasarkan nama pegawai atau jenis dokumen..."
+                        className="pl-10"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={() => fetchUsulan(currentPage)} variant="outline" size="sm" disabled={loading}>
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      <span className="ml-2">Refresh</span>
+                    </Button>
+                  </div>
+                  
+                  {/* Document Table */}
+                  {loading ? (
+                    <div className="flex justify-center items-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <span className="ml-2">Memuat dokumen...</span>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nama Pegawai</TableHead>
+                            <TableHead>NIP</TableHead>
+                            <TableHead>Jenis Dokumen</TableHead>
+                            <TableHead>Status Dokumen</TableHead>
+                            <TableHead>Tanggal Upload</TableHead>
+                            <TableHead>Ukuran File</TableHead>
+                            <TableHead className="text-right">Aksi</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {usulanList.length === 0 || !usulanList.some(u => u.dokumen && u.dokumen.length > 0) ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center py-10">
+                                <div className="flex flex-col items-center justify-center text-muted-foreground">
+                                  <FileText className="h-10 w-10 mb-2 opacity-25" />
+                                  <p>Tidak ada dokumen yang ditemukan</p>
+                                  <p className="text-sm">Belum ada dokumen yang diupload untuk usulan yang ada</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            usulanList.flatMap((usulan) => 
+                              usulan.dokumen && usulan.dokumen.length > 0
+                                ? usulan.dokumen.map((doc, index) => (
+                                    <TableRow key={`${usulan.id}-${index}`}>
+                                      <TableCell className="font-medium">{usulan.pegawai.nama || usulan.pegawai.name}</TableCell>
+                                      <TableCell>{usulan.pegawai.nip || "-"}</TableCell>
+                                      <TableCell>{doc.name || doc.documentType || "-"}</TableCell>
+                                      <TableCell>
+                                        <Badge className={doc.status === "APPROVED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}>
+                                          {doc.status || "Pending"}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>
+                                        {usulan.createdAt ? new Date(usulan.createdAt).toLocaleDateString("id-ID") : "-"}
+                                      </TableCell>
+                                      <TableCell>{doc.fileSize ? formatFileSize(doc.fileSize) : "-"}</TableCell>
+                                      <TableCell className="text-right">
+                                        <div className="flex gap-1 justify-end">
+                                          <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            onClick={() => window.open(doc.fileId || doc.fileUrl, '_blank')}
+                                          >
+                                            <Eye className="h-4 w-4 mr-1" /> Lihat
+                                          </Button>
+                                          <Button variant="ghost" size="sm" onClick={() => handleViewDetail(usulan)}>
+                                            <FileText className="h-4 w-4 mr-1" /> Detail
+                                          </Button>
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))
+                                : []
+                            )
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
         <Card>
           <CardHeader className="bg-slate-50 dark:bg-slate-800">
             <CardTitle className="text-xl flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Kelola Usulan Kenaikan Pangkat
+              {activeTab === "inbox" ? "Inbox Usulan Kenaikan Pangkat" : "Kelola Dokumen Usulan"}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -340,12 +568,12 @@ export default function KelolaPengajuanPage() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <Select value={statusFilter || ""} onValueChange={(value) => setStatusFilter(value || null)}>
+                <Select value={statusFilter || "ALL"} onValueChange={(value) => setStatusFilter(value !== "ALL" ? value : null)}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filter Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Semua Status</SelectItem>
+                    <SelectItem value="ALL">Semua Status</SelectItem>
                     <SelectItem value="DIAJUKAN">Diajukan</SelectItem>
                     <SelectItem value="DIPROSES_OPERATOR">Diproses Operator</SelectItem>
                     <SelectItem value="DISETUJUI_OPERATOR">Disetujui Operator</SelectItem>
@@ -429,36 +657,56 @@ export default function KelolaPengajuanPage() {
                         <TableHead>Nama Pegawai</TableHead>
                         <TableHead>NIP</TableHead>
                         <TableHead>Unit Kerja</TableHead>
+                        <TableHead>Wilayah</TableHead>
+                        <TableHead>Golongan</TableHead>
                         <TableHead>Tanggal Pengajuan</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {usulanList.map((usulan) => (
-                        <TableRow key={usulan.id}>
-                          <TableCell className="font-medium">{usulan.pegawai.name}</TableCell>
-                          <TableCell>{usulan.pegawai.nip || "-"}</TableCell>
-                          <TableCell>{usulan.pegawai.unitKerja?.name || "-"}</TableCell>
-                          <TableCell>
-                            {new Date(usulan.createdAt).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric"
-                            })}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusBadgeClass(usulan.status)}>
-                              {getStatusText(usulan.status)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => handleViewDetail(usulan)}>
-                              <Eye className="h-4 w-4 mr-1" /> Detail
-                            </Button>
+                      {usulanList.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-10">
+                            <div className="flex flex-col items-center justify-center text-muted-foreground">
+                              <FileText className="h-10 w-10 mb-2 opacity-25" />
+                              <p>Tidak ada usulan yang ditemukan</p>
+                              <p className="text-sm">Mungkin belum ada usulan atau coba ubah filter pencarian</p>
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        usulanList.map((usulan) => (
+                          <TableRow key={usulan.id}>
+                            <TableCell className="font-medium">{usulan.pegawai.nama || usulan.pegawai.name}</TableCell>
+                            <TableCell>{usulan.pegawai.nip || "-"}</TableCell>
+                            <TableCell>{usulan.pegawai.unitKerja || "-"}</TableCell>
+                            <TableCell>{usulan.pegawai.wilayah?.name || "-"}</TableCell>
+                            <TableCell>
+                              <div className="font-medium text-blue-600">
+                                {usulan.pegawai.golongan} → {usulan.pegawai.targetGolongan}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {new Date(usulan.createdAt).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric"
+                              })}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusBadgeClass(usulan.status)}>
+                                {getStatusText(usulan.status)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="sm" onClick={() => handleViewDetail(usulan)}>
+                                <Eye className="h-4 w-4 mr-1" /> Detail
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -499,88 +747,119 @@ export default function KelolaPengajuanPage() {
         
         {/* Detail Dialog */}
         <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
             {selectedUsulan && (
               <>
                 <DialogHeader>
-                  <DialogTitle>Detail Usulan Kenaikan Pangkat</DialogTitle>
+                  <DialogTitle className="text-lg md:text-xl">Detail Usulan Kenaikan Pangkat</DialogTitle>
                 </DialogHeader>
                 
-                <Tabs defaultValue="info">
-                  <TabsList className="mb-4">
-                    <TabsTrigger value="info">Informasi Umum</TabsTrigger>
-                    <TabsTrigger value="documents">Dokumen ({selectedUsulan.documents?.length || 0})</TabsTrigger>
+                <Tabs defaultValue="info" className="w-full">
+                  <TabsList className="mb-4 w-full grid grid-cols-2">
+                    <TabsTrigger value="info" className="text-xs md:text-sm">Informasi Umum</TabsTrigger>
+                    <TabsTrigger value="documents" className="text-xs md:text-sm">Dokumen ({selectedUsulan.dokumen?.length || 0})</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="info" className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <h3 className="font-medium text-muted-foreground">Informasi Pegawai</h3>
-                        <div className="grid grid-cols-3 gap-1">
-                          <div className="font-medium">Nama</div>
-                          <div className="col-span-2">{selectedUsulan.pegawai.name}</div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <h3 className="font-medium text-muted-foreground text-sm md:text-base">Informasi Pegawai</h3>
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Nama</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.pegawai.nama || selectedUsulan.pegawai.name}</div>
+                          </div>
                           
-                          <div className="font-medium">NIP</div>
-                          <div className="col-span-2">{selectedUsulan.pegawai.nip || "-"}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">NIP</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.pegawai.nip || "-"}</div>
+                          </div>
                           
-                          <div className="font-medium">Jabatan</div>
-                          <div className="col-span-2">{selectedUsulan.pegawai.jabatan || "-"}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Jabatan</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.pegawai.jabatan || "-"}</div>
+                          </div>
                           
-                          <div className="font-medium">Unit Kerja</div>
-                          <div className="col-span-2">{selectedUsulan.pegawai.unitKerja?.name || "-"}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Unit Kerja</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.pegawai.unitKerja || "-"}</div>
+                          </div>
                           
-                          <div className="font-medium">Wilayah</div>
-                          <div className="col-span-2">{selectedUsulan.pegawai.unitKerja?.wilayah?.name || "-"}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Wilayah</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.pegawai.wilayah?.name || "-"}</div>
+                          </div>
                           
-                          <div className="font-medium">Golongan Saat Ini</div>
-                          <div className="col-span-2">{selectedUsulan.pegawai.currentRank || selectedUsulan.pegawai.golongan || "-"}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Golongan Saat Ini</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.pegawai.golongan || "-"}</div>
+                          </div>
                           
-                          <div className="font-medium">Golongan Tujuan</div>
-                          <div className="col-span-2">{selectedUsulan.pegawai.targetRank || "-"}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Golongan Tujuan</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.pegawai.targetGolongan || "-"}</div>
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
-                        <h3 className="font-medium text-muted-foreground">Informasi Usulan</h3>
-                        <div className="grid grid-cols-3 gap-1">
-                          <div className="font-medium">ID Usulan</div>
-                          <div className="col-span-2">{selectedUsulan.id}</div>
-                          
-                          <div className="font-medium">Tanggal Pengajuan</div>
-                          <div className="col-span-2">
-                            {new Date(selectedUsulan.createdAt).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric"
-                            })}
+                      <div className="space-y-3">
+                        <h3 className="font-medium text-muted-foreground text-sm md:text-base">Informasi Usulan</h3>
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">ID Usulan</div>
+                            <div className="sm:col-span-2 text-sm break-all">{selectedUsulan.id}</div>
                           </div>
                           
-                          <div className="font-medium">Terakhir Diperbarui</div>
-                          <div className="col-span-2">
-                            {new Date(selectedUsulan.updatedAt).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit"
-                            })}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Tanggal Pengajuan</div>
+                            <div className="sm:col-span-2 text-sm">
+                              {new Date(selectedUsulan.createdAt).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric"
+                              })}
+                            </div>
                           </div>
                           
-                          <div className="font-medium">Status</div>
-                          <div className="col-span-2">
-                            <Badge className={getStatusBadgeClass(selectedUsulan.status)}>
-                              {getStatusText(selectedUsulan.status)}
-                            </Badge>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Terakhir Diperbarui</div>
+                            <div className="sm:col-span-2 text-sm">
+                              {new Date(selectedUsulan.updatedAt).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </div>
                           </div>
                           
-                          <div className="font-medium">Periode</div>
-                          <div className="col-span-2">{selectedUsulan.timeline?.title || "-"}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Status</div>
+                            <div className="sm:col-span-2">
+                              <Badge className={getStatusBadgeClass(selectedUsulan.status)}>
+                                {getStatusText(selectedUsulan.status)}
+                              </Badge>
+                            </div>
+                          </div>
                           
-                          <div className="font-medium">Timeline</div>
-                          <div className="col-span-2">
-                            {selectedUsulan.timeline ? 
-                              `${new Date(selectedUsulan.timeline.startDate).toLocaleDateString("id-ID")} - ${new Date(selectedUsulan.timeline.endDate).toLocaleDateString("id-ID")}` 
-                              : "-"}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Periode</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.periode || "-"}</div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Timeline</div>
+                            <div className="sm:col-span-2 text-sm">
+                              {selectedUsulan.timeline ? 
+                                `${new Date(selectedUsulan.timeline.startDate).toLocaleDateString("id-ID")} - ${new Date(selectedUsulan.timeline.endDate).toLocaleDateString("id-ID")}` 
+                                : "-"}
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="font-medium text-sm">Deskripsi Timeline</div>
+                            <div className="sm:col-span-2 text-sm break-words">{selectedUsulan.timeline?.description || "-"}</div>
                           </div>
                         </div>
                       </div>
@@ -588,8 +867,8 @@ export default function KelolaPengajuanPage() {
                     
                     {/* Catatan */}
                     <div className="pt-4">
-                      <h3 className="font-medium text-muted-foreground mb-2">Catatan</h3>
-                      <div className="bg-muted/30 p-3 rounded-md whitespace-pre-line">
+                      <h3 className="font-medium text-muted-foreground mb-2 text-sm md:text-base">Catatan</h3>
+                      <div className="bg-muted/30 p-3 rounded-md whitespace-pre-line text-sm">
                         {selectedUsulan.notes || "Tidak ada catatan"}
                       </div>
                     </div>
@@ -597,22 +876,23 @@ export default function KelolaPengajuanPage() {
                     {/* Tindakan Admin */}
                     {(selectedUsulan.status === "DISETUJUI_OPERATOR" || selectedUsulan.status === "DIPROSES_ADMIN") && (
                       <div className="pt-4 space-y-4">
-                        <h3 className="font-medium text-muted-foreground">Tindakan Admin</h3>
+                        <h3 className="font-medium text-muted-foreground text-sm md:text-base">Tindakan Admin</h3>
                         <Textarea 
                           placeholder="Tambahkan catatan (wajib untuk penolakan)..." 
                           value={catatan}
                           onChange={(e) => setCatatan(e.target.value)}
+                          className="text-sm"
                         />
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <Button 
-                            className="bg-green-600 hover:bg-green-700 flex-1" 
+                            className="bg-green-600 hover:bg-green-700 flex-1 text-sm" 
                             onClick={handleApprove}
                           >
                             <CheckCircle className="w-4 h-4 mr-2" /> Setujui Usulan
                           </Button>
                           <Button 
                             variant="destructive" 
-                            className="flex-1"
+                            className="flex-1 text-sm"
                             onClick={handleReject}
                           >
                             <XCircle className="w-4 h-4 mr-2" /> Tolak Usulan
@@ -623,39 +903,43 @@ export default function KelolaPengajuanPage() {
                   </TabsContent>
                   
                   <TabsContent value="documents" className="space-y-4">
-                    {selectedUsulan.documents && selectedUsulan.documents.length > 0 ? (
-                      <div className="border rounded-md divide-y">
-                        {selectedUsulan.documents.map((doc, index) => (
-                          <div key={index} className="p-4 flex items-center justify-between">
-                            <div>
-                              <div className="font-medium">{doc.name || doc.fileName || `Dokumen ${index + 1}`}</div>
-                              <div className="text-sm text-muted-foreground flex gap-2">
-                                {doc.fileType && <span>{doc.fileType}</span>}
-                                {doc.fileSize && <span>{formatFileSize(doc.fileSize)}</span>}
-                                {doc.uploadedAt && (
-                                  <span>
-                                    Diunggah: {new Date(doc.uploadedAt).toLocaleDateString("id-ID")}
-                                  </span>
-                                )}
+                    {selectedUsulan.dokumen && selectedUsulan.dokumen.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedUsulan.dokumen.map((doc, index) => (
+                          <div key={index} className="border rounded-lg p-4">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm md:text-base break-words">
+                                  {doc.name || doc.fileName || `Dokumen ${index + 1}`}
+                                </div>
+                                <div className="text-xs md:text-sm text-muted-foreground flex flex-wrap gap-2 mt-1">
+                                  {doc.fileType && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">{doc.fileType}</span>}
+                                  {doc.fileSize && <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded">{formatFileSize(doc.fileSize)}</span>}
+                                  {doc.uploadedAt && (
+                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded">
+                                      Diunggah: {new Date(doc.uploadedAt).toLocaleDateString("id-ID")}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex gap-2 flex-shrink-0">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="text-xs md:text-sm"
+                                  onClick={() => window.open(doc.fileUrl || doc.fileId, '_blank')}
+                                >
+                                  <DownloadCloud className="w-3 h-3 md:w-4 md:h-4 mr-1" /> Lihat
+                                </Button>
                               </div>
                             </div>
-                            <a 
-                              href={doc.fileUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center"
-                            >
-                              <Button variant="outline" size="sm">
-                                <DownloadCloud className="w-4 h-4 mr-2" /> Lihat
-                              </Button>
-                            </a>
                           </div>
                         ))}
                       </div>
                     ) : (
                       <div className="text-center py-12 border rounded-md bg-muted/20">
                         <FileText className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-2" />
-                        <p className="text-muted-foreground">Tidak ada dokumen yang tersedia</p>
+                        <p className="text-muted-foreground text-sm md:text-base">Tidak ada dokumen yang tersedia</p>
                       </div>
                     )}
                   </TabsContent>

@@ -13,11 +13,32 @@ export async function GET(request: NextRequest) {
     // Get user's unit kerja for filtering
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { unitKerja: true, wilayah: true }
+      select: { 
+        unitKerja: true, 
+        wilayah: true 
+      }
     })
 
-    if (!user?.unitKerja) {
-      return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
+    if (!user) {
+      return NextResponse.json({ message: 'User not found' }, { status: 400 })
+    }
+
+    // Extract unitKerja ID based on whether it's a string or an object
+    let unitKerjaId = null;
+    if (typeof user.unitKerja === 'string') {
+      // Try to find the unitKerja by name
+      const unitKerjaByName = await prisma.unitKerja.findFirst({
+        where: { nama: user.unitKerja },
+        select: { id: true }
+      });
+      unitKerjaId = unitKerjaByName?.id;
+    } else if (typeof user.unitKerja === 'object' && user.unitKerja !== null) {
+      // If it's already an object with an ID
+      unitKerjaId = (user.unitKerja as { id: string }).id;
+    }
+
+    if (!unitKerjaId) {
+      return NextResponse.json({ message: 'Unit kerja ID not found' }, { status: 400 })
     }
 
     // Get stats for the school
@@ -26,7 +47,7 @@ export async function GET(request: NextRequest) {
       prisma.user.count({
         where: {
           role: 'PEGAWAI',
-          unitKerja: user.unitKerja
+          unitKerjaId: unitKerjaId
         }
       }),
 
@@ -34,7 +55,7 @@ export async function GET(request: NextRequest) {
       prisma.promotionProposal.count({
         where: {
           pegawai: {
-            unitKerja: user.unitKerja
+            unitKerjaId: unitKerjaId
           }
         }
       }),
@@ -44,7 +65,7 @@ export async function GET(request: NextRequest) {
         by: ['status'],
         where: {
           pegawai: {
-            unitKerja: user.unitKerja
+            unitKerjaId: unitKerjaId
           }
         },
         _count: {
@@ -81,6 +102,13 @@ export async function GET(request: NextRequest) {
       ['SELESAI'].includes(s.status)
     )?._count.status || 0
 
+    // Get the unit kerja name
+    const unitKerjaData = await prisma.unitKerja.findUnique({
+      where: { id: unitKerjaId },
+      select: { nama: true }
+    });
+    const unitKerjaNama = unitKerjaData?.nama || 'Unknown';
+
     const response = {
       totalPegawai,
       totalUsulan,
@@ -88,7 +116,7 @@ export async function GET(request: NextRequest) {
       usulanDiproses,
       usulanSelesai,
       deadlineAktif: activeTimeline?.endDate?.toISOString() || null,
-      unitKerja: user.unitKerja,
+      unitKerja: unitKerjaNama,
       wilayah: user.wilayah
     }
 

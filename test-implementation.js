@@ -5,8 +5,6 @@
  * Tests all operator backend functionality including real-time features
  */
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import fs from 'fs'
 import path from 'path'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getSession()
     
@@ -22,11 +22,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
     }
 
-    // Get usulan for this unit kerja
+    // Get usulan for this unit kerja, excluding drafts
     const usulan = await prisma.promotionProposal.findMany({
       where: {
         pegawai: {
           unitKerja: user.unitKerja
+        },
+        // Exclude DRAFT status to only show active proposals
+        status: {
+          not: 'DRAFT'
         }
       },
       include: {
@@ -42,7 +46,16 @@ export async function GET(request: NextRequest) {
         documents: {
           select: {
             id: true,
-            status: true
+            fileName: true,
+            fileUrl: true,
+            status: true,
+            documentRequirementId: true,
+            documentRequirement: {
+              select: {
+                name: true,
+                code: true
+              }
+            }
           }
         }
       },
@@ -67,6 +80,19 @@ export async function GET(request: NextRequest) {
       }
       const golonganTujuan = golonganMap[currentGolongan] || 'IV/a'
 
+      // Format documents for easy access
+      const documents = u.documents.map((doc: any) => ({
+        id: doc.id,
+        fileName: doc.fileName,
+        fileUrl: doc.fileUrl,
+        status: doc.status,
+        documentRequirementId: doc.documentRequirementId,
+        documentType: doc.documentRequirement?.name || 'Dokumen',
+        documentCode: doc.documentRequirement?.code || '',
+        previewUrl: `/api/documents/${doc.id}/preview`,
+        downloadUrl: `/api/documents/${doc.id}/download`
+      }))
+
       return {
         id: u.id,
         pegawai: {
@@ -83,8 +109,10 @@ export async function GET(request: NextRequest) {
         tanggalAjukan: u.createdAt.toISOString().split('T')[0],
         tanggalUpdate: u.updatedAt.toISOString().split('T')[0],
         keterangan: u.notes || 'Tidak ada keterangan',
-        dokumenCount: u.documents.length,
-        dokumenDiapprove: u.documents.filter((d: any) => d.status === 'DISETUJUI').length
+        documents: documents,
+        dokumenCount: documents.length,
+        dokumenDiapprove: documents.filter((d: any) => d.status === 'DISETUJUI').length,
+        allDocumentsApproved: documents.length > 0 && documents.every((d: any) => d.status === 'DISETUJUI')
       }
     })
 
@@ -110,148 +138,124 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
-    // Parse form data for file upload
-    const formData = await request.formData()
-    const pegawaiId = formData.get('pegawaiId') as string
-    const periode = formData.get('periode') as string
-    const keterangan = formData.get('keterangan') as string
-    const nomorSuratPengantar = formData.get('nomorSuratPengantar') as string
-    const tanggalSurat = formData.get('tanggalSurat') as string
-    const fileSuratPengantar = formData.get('fileSuratPengantar') as File | null
+    const body = await request.json()
+    const { usulanId, action, notes } = body
 
-    // Validation
-    if (!pegawaiId) {
-      return NextResponse.json({ message: 'Pegawai ID is required' }, { status: 400 })
-    }
-    
-    if (!nomorSuratPengantar?.trim()) {
-      return NextResponse.json({ message: 'Nomor surat pengantar is required' }, { status: 400 })
-    }
-    
-    if (!tanggalSurat) {
-      return NextResponse.json({ message: 'Tanggal surat is required' }, { status: 400 })
+    if (!usulanId || !action) {
+      return NextResponse.json({ message: 'Missing required fields' }, { status: 400 })
     }
 
-    // Get user's unit kerja
+    // Validate action
+    const validActions = ['APPROVE', 'REJECT', 'RETURN']
+    if (!validActions.includes(action)) {
+      return NextResponse.json({ message: 'Invalid action' }, { status: 400 })
+    }
+
+    // Get user's unit kerja for validation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { unitKerja: true }
+      select: { unitKerja: true, name: true }
     })
 
     if (!user?.unitKerja) {
       return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
     }
 
-    // Verify pegawai is in the same unit kerja
-    const pegawai = await prisma.user.findFirst({
-      where: {
-        id: pegawaiId,
-        role: 'PEGAWAI',
-        unitKerja: user.unitKerja
-      }
-    })
-
-    if (!pegawai) {
-      return NextResponse.json({ message: 'Pegawai not found or not in your unit' }, { status: 404 })
-    }
-
-    // Check if there's already an active proposal for this pegawai
-    const existingProposal = await prisma.promotionProposal.findFirst({
-      where: {
-        pegawaiId,
-        status: {
-          notIn: ['SELESAI', 'DITOLAK', 'DITARIK']
-        }
-      }
-    })
-
-    if (existingProposal) {
-      return NextResponse.json({ 
-        message: 'Pegawai sudah memiliki usulan yang aktif' 
-      }, { status: 400 })
-    }
-
-    // Handle file upload if provided
-    let filePath: string | null = null
-    if (fileSuratPengantar && fileSuratPengantar.size > 0) {
-      // Create uploads directory if not exists
-      const uploadsDir = path.join(process.cwd(), 'uploads', 'cover-letters')
-      
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true })
-      }
-      
-      // Generate unique filename
-      const fileExtension = fileSuratPengantar.name.split('.').pop()
-      const fileName = `cover-letter-${Date.now()}.${fileExtension}`
-      filePath = `/uploads/cover-letters/${fileName}`
-      
-      // Save file
-      const bytes = await fileSuratPengantar.arrayBuffer()
-      const buffer = Buffer.from(bytes)
-      fs.writeFileSync(path.join(uploadsDir, fileName), buffer)
-    }
-
-    // Create usulan
-    const usulan = await prisma.promotionProposal.create({
-      data: {
-        pegawaiId,
-        operatorId: session.user.id,
-        periode,
-        notes: keterangan || null,
-        nomorSuratPengantar,
-        tanggalSurat: new Date(tanggalSurat),
-        fileSuratPengantar: filePath,
-        status: 'DRAFT'
-      },
+    // Get the proposal and verify it belongs to the operator's unit kerja
+    const proposal = await prisma.promotionProposal.findUnique({
+      where: { id: usulanId },
       include: {
         pegawai: {
           select: {
+            id: true,
             name: true,
-            nip: true
+            nip: true,
+            unitKerja: true
+          }
+        },
+        documents: true
+      }
+    })
+
+    if (!proposal) {
+      return NextResponse.json({ message: 'Proposal not found' }, { status: 404 })
+    }
+
+    // Verify unit kerja matches or that the proposal status is 'MENUNGGU_KONFIRMASI' or 'MENUNGGU_VERIFIKASI_SEKOLAH'
+    const isValidStatus = ['MENUNGGU_KONFIRMASI', 'MENUNGGU_VERIFIKASI_SEKOLAH', 'SUBMITTED', 'PENDING'].includes(proposal.status);
+    const unitKerjaMatches = typeof proposal.pegawai.unitKerja === 'object' 
+      ? proposal.pegawai.unitKerja?.id === user.unitKerja.id
+      : proposal.pegawai.unitKerja === user.unitKerja;
+
+    if (!unitKerjaMatches && !isValidStatus) {
+      return NextResponse.json({ 
+        message: 'You can only manage proposals from your unit kerja or with pending confirmation status' 
+      }, { status: 403 })
+    }
+
+    // Process action
+    let newStatus = proposal.status
+    let actionNotes = `Diproses oleh ${user.name} (Operator Sekolah)`
+    
+    if (notes) {
+      actionNotes += `: ${notes}`
+    }
+
+    switch (action) {
+      case 'APPROVE':
+        // If approving, forward to operator (dinas)
+        newStatus = 'DISETUJUI_SEKOLAH'
+        break
+      case 'REJECT':
+        // If rejecting, set status to rejected
+        newStatus = 'DITOLAK_SEKOLAH'
+        break
+      case 'RETURN':
+        // If returning for corrections, set status accordingly
+        newStatus = 'PERLU_PERBAIKAN_DARI_SEKOLAH'
+        break
+    }
+
+    // Update the proposal
+    const updatedProposal = await prisma.promotionProposal.update({
+      where: { id: usulanId },
+      data: {
+        status: newStatus,
+        notes: proposal.notes ? `${proposal.notes}\n\n${actionNotes}` : actionNotes,
+        // Create a timeline entry
+        timeline: {
+          create: {
+            status: newStatus,
+            notes: actionNotes,
+            actor: user.name,
+            actorRole: 'OPERATOR_SEKOLAH'
           }
         }
       }
     })
 
-    // Log activity
-    await prisma.activityLog.create({
-      data: {
-        action: "CREATE_USULAN",
-        details: {
-          usulanId: usulan.id,
-          pegawaiName: usulan.pegawai.name,
-          periode: usulan.periode,
-          nomorSuratPengantar: usulan.nomorSuratPengantar
-        },
-        userId: session.user.id,
-      }
-    })
-
-    // Create notification for the employee
+    // Create notification for pegawai
     await prisma.notification.create({
       data: {
-        title: "Usulan Kenaikan Pangkat Dibuat",
-        message: `Usulan kenaikan pangkat untuk periode ${usulan.periode} telah dibuat oleh operator sekolah. Silakan lengkapi dokumen yang diperlukan.`,
-        type: "info",
-        userId: pegawaiId,
-        actionUrl: "/pegawai/riwayat-usulan",
-        actionLabel: "Lihat Usulan"
+        userId: proposal.pegawai.id,
+        title: `Usulan Kenaikan Pangkat ${action === 'APPROVE' ? 'Disetujui' : action === 'REJECT' ? 'Ditolak' : 'Perlu Perbaikan'}`,
+        message: actionNotes,
+        type: action === 'APPROVE' ? 'SUCCESS' : action === 'REJECT' ? 'ERROR' : 'WARNING',
+        isRead: false,
+        metadata: {
+          proposalId: usulanId,
+          action: action
+        }
       }
     })
 
     return NextResponse.json({ 
-      message: 'Usulan berhasil dibuat',
-      usulan: {
-        id: usulan.id,
-        periode: usulan.periode,
-        pegawai: usulan.pegawai,
-        nomorSuratPengantar: usulan.nomorSuratPengantar,
-        tanggalSurat: usulan.tanggalSurat
-      }
+      success: true, 
+      message: `Usulan berhasil ${action === 'APPROVE' ? 'disetujui' : action === 'REJECT' ? 'ditolak' : 'dikembalikan'}`,
+      proposal: updatedProposal
     })
   } catch (error) {
-    console.error('Create usulan error:', error)
+    console.error('Process usulan API error:', error)
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }

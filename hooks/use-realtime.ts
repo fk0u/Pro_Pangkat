@@ -24,26 +24,6 @@ interface RealtimeHookReturn<T> {
 
 interface DashboardData {
   urgentProposals?: Array<{ id: string }>
-  stats?: {
-    proposals?: {
-      total: number
-      today: number
-      thisWeek: number
-      urgent: number
-      processing: number
-    }
-    performance?: {
-      dailyProcessed: number
-      operatorEfficiency: number
-    }
-    documents?: {
-      verificationRate: number
-    }
-    regional?: {
-      pegawaiCount: number
-      unitKerjaCount: number
-    }
-  }
   [key: string]: unknown
 }
 

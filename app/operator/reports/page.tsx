@@ -56,8 +56,15 @@ export default function OperatorReportExportPage() {
   const [period, setPeriod] = useState("current")
   const [periodOptions, setPeriodOptions] = useState<{value: string, label: string}[]>([])
   const [unitKerjaOptions, setUnitKerjaOptions] = useState<{value: string, label: string}[]>([])
-  const [unitKerjaFilter, setUnitKerjaFilter] = useState("")
-  const [jenjangFilter, setJenjangFilter] = useState("")
+  const [unitKerjaFilter, setUnitKerjaFilter] = useState("all")
+  const [jenjangFilter, setJenjangFilter] = useState("all")
+  const [jenjangOptions] = useState([
+    { value: "all", label: "Semua Jenjang" },
+    { value: "SD", label: "SD" },
+    { value: "SMP", label: "SMP" },
+    { value: "SMA", label: "SMA/SMK" },
+    { value: "DINAS", label: "Dinas" }
+  ])
   const [startDate, setStartDate] = useState<Date | undefined>(undefined)
   const [endDate, setEndDate] = useState<Date | undefined>(undefined)
   const [searchQuery, setSearchQuery] = useState("")
@@ -77,7 +84,7 @@ export default function OperatorReportExportPage() {
 
   const fetchPeriods = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/periods")
+      const response = await fetch("/api/shared/periods")
       
       if (!response.ok) {
         throw new Error("Failed to fetch periods")
@@ -88,7 +95,7 @@ export default function OperatorReportExportPage() {
       const options = [
         { value: "current", label: "Periode Aktif" },
         ...result.data.map((p: PeriodData) => ({ 
-          value: p.id, 
+          value: p.id || `period-${Math.random().toString(36).substring(2, 9)}`, 
           label: `${p.title} (${new Date(p.startDate).toLocaleDateString("id-ID")} - ${new Date(p.endDate).toLocaleDateString("id-ID")})` 
         }))
       ]
@@ -115,10 +122,10 @@ export default function OperatorReportExportPage() {
       const result = await response.json()
       
       const options = [
-        { value: "", label: "Semua Unit Kerja" },
+        { value: "all", label: "Semua Unit Kerja" },
         ...result.data.map((uk: UnitKerjaData) => ({ 
-          value: uk.id, 
-          label: uk.nama
+          value: uk.id || `uk-${Math.random().toString(36).substring(2, 9)}`, 
+          label: uk.nama || "Unit Kerja"
         }))
       ]
       
@@ -145,10 +152,10 @@ export default function OperatorReportExportPage() {
       if (statusFilter !== "all") {
         params.append("status", statusFilter)
       }
-      if (unitKerjaFilter) {
+      if (unitKerjaFilter && unitKerjaFilter !== "all") {
         params.append("unitKerjaId", unitKerjaFilter)
       }
-      if (jenjangFilter) {
+      if (jenjangFilter && jenjangFilter !== "all") {
         params.append("jenjang", jenjangFilter)
       }
       if (startDate) {
@@ -361,7 +368,7 @@ export default function OperatorReportExportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {periodOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem key={option.value || `period-${Math.random()}`} value={option.value || `period-${Math.random()}`}>
                       {option.label}
                     </SelectItem>
                   ))}
@@ -392,6 +399,19 @@ export default function OperatorReportExportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {unitKerjaOptions.map((option) => (
+                    <SelectItem key={option.value || `uk-${Math.random()}`} value={option.value || `uk-${Math.random()}`}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={jenjangFilter} onValueChange={setJenjangFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Jenjang" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jenjangOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

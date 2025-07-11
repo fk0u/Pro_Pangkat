@@ -1,6 +1,6 @@
 // app/operator/inbox/page.tsx
-import InboxClientEnhanced from "./inbox-client-enhanced"
+import InboxClient from "./inbox-client"
 
 export default function Page() {
-  return <InboxClientEnhanced />
+  return <InboxClient />
 }

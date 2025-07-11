@@ -11,14 +11,24 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
-import { User, Edit, Save, Camera, CheckCircle, AlertCircle } from "lucide-react"
+import { User, Edit, Save, Camera, CheckCircle, AlertCircle, Lock, Eye, EyeOff } from "lucide-react"
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 // Helper function to safely get string values from potentially complex objects
-const safeGetString = (value: any): string => {
+const safeGetString = (value: unknown): string => {
   if (value === null || value === undefined) return ""
   if (typeof value === "string") return value
   if (typeof value === "object" && value !== null) {
     // If it's an object, try to get the 'nama' property, or stringify if that fails
+    // @ts-expect-error - We're checking for property existence in a generic object
     return value.nama || value.name || ""
   }
   return String(value)
@@ -42,6 +52,24 @@ export default function ProfilPage() {
     alamat: "",
     wilayah: "",
   })
+  
+  const [passwordData, setPasswordData] = useState({
+    newPassword: "",
+    confirmPassword: ""
+  })
+  
+  const [showPassword, setShowPassword] = useState({
+    newPassword: false,
+    confirmPassword: false
+  })
+  
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordErrors, setPasswordErrors] = useState<{
+    newPassword?: string;
+    confirmPassword?: string;
+    general?: string;
+  }>({});
 
   useEffect(() => {
     fetchProfileData()
@@ -165,7 +193,7 @@ export default function ProfilPage() {
 
       // Filter out null or undefined values to prevent API errors
       const cleanedUpdateData = Object.fromEntries(
-        Object.entries(updateData).filter(([_, value]) => value !== null && value !== undefined)
+        Object.entries(updateData).filter(([, value]) => value !== null && value !== undefined)
       );
 
       console.log("Sending profile update:", cleanedUpdateData); // Debug log to see what's being sent
@@ -219,9 +247,90 @@ export default function ProfilPage() {
     // Reset form data if needed
   }
 
+  const handleChangePassword = async () => {
+    // Reset errors
+    setPasswordErrors({});
+    
+    // Validate passwords
+    const errors: {
+      newPassword?: string;
+      confirmPassword?: string;
+      general?: string;
+    } = {};
+    
+    if (!passwordData.newPassword) {
+      errors.newPassword = "Password baru wajib diisi";
+    } else if (passwordData.newPassword.length < 8) {
+      errors.newPassword = "Password minimal 8 karakter";
+    }
+    
+    if (!passwordData.confirmPassword) {
+      errors.confirmPassword = "Konfirmasi password wajib diisi";
+    } else if (passwordData.newPassword !== passwordData.confirmPassword) {
+      errors.confirmPassword = "Password tidak cocok";
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setPasswordErrors(errors);
+      return;
+    }
+    
+    setIsChangingPassword(true);
+    
+    try {
+      const response = await fetch("/api/users/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newPassword: passwordData.newPassword,
+          confirmPassword: passwordData.confirmPassword
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        if (data.errors) {
+          setPasswordErrors(data.errors);
+        } else {
+          setPasswordErrors({
+            general: data.message || "Gagal mengubah password"
+          });
+        }
+        return;
+      }
+      
+      // Success - close dialog and reset form
+      setChangePasswordOpen(false);
+      
+      // Reset form data
+      setPasswordData({ 
+        newPassword: "", 
+        confirmPassword: "" 
+      });
+      
+      // Reset password visibility
+      setShowPassword({ 
+        newPassword: false, 
+        confirmPassword: false 
+      });
+      
+      // Show success toast
+      toast({
+        title: "Password berhasil diubah ✅",
+        description: "Password Anda telah berhasil diperbarui",
+      });
+    } catch (error) {
+      setPasswordErrors({
+        general: error instanceof Error ? error.message : "Terjadi kesalahan saat mengubah password"
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
+
   return (
-    <DashboardLayout userType="pegawai" isLoading={isLoading}>
-      <div className="space-y-6">
+    <DashboardLayout userType="pegawai">
+      <div className={`space-y-6 ${isLoading ? "opacity-70 pointer-events-none" : ""}`}>
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <div className="bg-gradient-to-r from-sky-500 to-teal-500 rounded-2xl p-6 text-white">
@@ -361,7 +470,7 @@ export default function ProfilPage() {
                         id="email"
                         type="email"
                         value={profileData.email}
-                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileData({ ...profileData, email: e.target.value })}
                         disabled={!isEditing}
                       />
                     </div>
@@ -371,7 +480,7 @@ export default function ProfilPage() {
                       <Input
                         id="telepon"
                         value={profileData.telepon}
-                        onChange={(e) => setProfileData({ ...profileData, telepon: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileData({ ...profileData, telepon: e.target.value })}
                         disabled={!isEditing}
                       />
                     </div>
@@ -381,7 +490,7 @@ export default function ProfilPage() {
                       <Input
                         id="alamat"
                         value={profileData.alamat}
-                        onChange={(e) => setProfileData({ ...profileData, alamat: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileData({ ...profileData, alamat: e.target.value })}
                         disabled={!isEditing}
                       />
                     </div>
@@ -480,6 +589,155 @@ export default function ProfilPage() {
             </Card>
           </motion.div>
         </div>
+
+        {/* Account Settings Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+          className="mb-6"
+        >
+          <Card className="shadow-md">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-2xl font-bold flex items-center">
+                <Lock className="h-6 w-6 mr-2 text-primary" />
+                Pengaturan Akun
+              </CardTitle>
+              <CardDescription>
+                Kelola keamanan akun dan ubah password Anda
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Change Password */}
+              <div>
+                <h3 className="text-lg font-medium mb-2">Ubah Password</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Pastikan password Anda kuat dan tidak mudah ditebak
+                </p>
+                
+                <Dialog open={changePasswordOpen} onOpenChange={(open) => {
+                  setChangePasswordOpen(open);
+                  if (!open) {
+                    // Reset form when dialog is closed
+                    setPasswordData({ newPassword: "", confirmPassword: "" });
+                    setShowPassword({ newPassword: false, confirmPassword: false });
+                    setPasswordErrors({});
+                  }
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <Lock className="h-4 w-4 mr-2" />
+                      Ubah Password
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Ubah Password</DialogTitle>
+                      <DialogDescription>
+                        Masukkan password baru Anda. Password minimal 8 karakter.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="grid gap-4 py-4">
+                      {passwordErrors.general && (
+                        <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-md text-red-600 dark:text-red-200 text-sm">
+                          {passwordErrors.general}
+                        </div>
+                      )}
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="dialogNewPassword">Password Baru</Label>
+                        <div className="relative">
+                          <Input
+                            id="dialogNewPassword"
+                            type={showPassword.newPassword ? "text" : "password"}
+                            value={passwordData.newPassword}
+                            onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                            className={passwordErrors.newPassword ? "border-red-500" : ""}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword({...showPassword, newPassword: !showPassword.newPassword})}
+                          >
+                            {showPassword.newPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </Button>
+                        </div>
+                        {passwordErrors.newPassword && (
+                          <p className="text-red-500 text-xs mt-1">{passwordErrors.newPassword}</p>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="dialogConfirmPassword">Konfirmasi Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="dialogConfirmPassword"
+                            type={showPassword.confirmPassword ? "text" : "password"}
+                            value={passwordData.confirmPassword}
+                            onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                            className={passwordErrors.confirmPassword ? "border-red-500" : ""}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword({...showPassword, confirmPassword: !showPassword.confirmPassword})}
+                          >
+                            {showPassword.confirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </Button>
+                        </div>
+                        {passwordErrors.confirmPassword && (
+                          <p className="text-red-500 text-xs mt-1">{passwordErrors.confirmPassword}</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button 
+                        variant="secondary" 
+                        onClick={() => setChangePasswordOpen(false)}
+                        disabled={isChangingPassword}
+                      >
+                        Batal
+                      </Button>
+                      <Button 
+                        onClick={handleChangePassword}
+                        disabled={isChangingPassword}
+                      >
+                        {isChangingPassword ? (
+                          <>
+                            <span className="mr-2">Menyimpan...</span>
+                            <span className="animate-spin">⏳</span>
+                          </>
+                        ) : (
+                          "Simpan Password"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              
+              {/* Account Security */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                <div className="flex items-start">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">Keamanan Akun</p>
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      Jaga kerahasiaan password Anda. Jangan bagikan informasi login kepada orang lain.
+                      Ganti password Anda secara berkala untuk menjaga keamanan akun.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </DashboardLayout>
   )

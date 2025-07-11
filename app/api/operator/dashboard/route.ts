@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { withAuth, createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-import { StatusProposal, StatusDokumen, User, PromotionProposal, ProposalDocument, Prisma } from "@prisma/client"
+import { StatusProposal, StatusDokumen, User, PromotionProposal, ProposalDocument } from "@prisma/client"
 
 interface ProposalWithDetails extends PromotionProposal {
   pegawai: Pick<User, 'name' | 'nip' | 'unitKerja' | 'jabatan' | 'golongan' | 'email'>
@@ -33,70 +33,33 @@ interface DocumentStatusCount {
 
 export const GET = withAuth(async (req: NextRequest, user: any) => {
   try {
-    // Hanya operator dan operator unit kerja yang bisa mengakses endpoint ini
-    if (!["OPERATOR", "OPERATOR_UNIT_KERJA"].includes(user.role)) {
+    // Hanya operator yang bisa mengakses endpoint ini
+    if (user.role !== "OPERATOR") {
       return createErrorResponse("Access denied", 403)
     }
 
-    // Get operator's complete data including wilayah and unitKerjaId
+    // Get operator's complete data including wilayah
     const operatorData = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { 
-        wilayah: true, 
-        name: true, 
-        role: true,
-        unitKerjaId: true,
-        unitKerja: {
-          select: {
-            id: true,
-            nama: true,
-            wilayah: true
-          }
-        }
-      },
+      select: { wilayah: true, name: true },
     })
 
-    if (!operatorData) {
-      return createErrorResponse("Operator data not found", 400)
+    if (!operatorData || !operatorData.wilayah) {
+      return createErrorResponse("Operator wilayah not found", 400)
     }
 
-    // Determine filtering based on role
-    let whereCondition: any = {}
-    
-    if (operatorData.role === "OPERATOR") {
-      // Operator dapat melihat semua proposal di wilayahnya
-      if (!operatorData.wilayah) {
-        return createErrorResponse("Operator wilayah not found", 400)
-      }
-      whereCondition = {
-        pegawai: {
-          wilayah: operatorData.wilayah,
-        },
-      }
-    } else if (operatorData.role === "OPERATOR_UNIT_KERJA") {
-      // Operator Unit Kerja hanya dapat melihat proposal dari unit kerjanya
-      if (!operatorData.unitKerjaId) {
-        return createErrorResponse("Operator unit kerja not found", 400)
-      }
-      whereCondition = {
-        pegawai: {
-          unitKerjaId: operatorData.unitKerjaId,
-        },
-      }
-    }
-
-    console.log("Operator data:", {
-      role: operatorData.role,
-      wilayah: operatorData.wilayah,
-      unitKerja: operatorData.unitKerja?.nama
-    })
+    console.log("Operator wilayah:", operatorData.wilayah)
 
     // Cache configuration for better performance
     const cacheTime = 5 * 60 * 1000 // 5 minutes cache
 
-    // Get proposals based on operator role with detailed information
+    // Get proposals in operator's region with detailed information
     const proposals = await prisma.promotionProposal.findMany({
-      where: whereCondition,
+      where: {
+        pegawai: {
+          wilayah: operatorData.wilayah,
+        },
+      },
       include: {
         pegawai: {
           select: {
@@ -122,22 +85,15 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
       orderBy: { createdAt: "desc" },
     })
 
-    // Get active timelines for this region/unit
-    let timelineWhere: any = {
-      isActive: true,
-      OR: [
-        { wilayah: null }, // Timeline untuk semua wilayah
-      ],
-    }
-    
-    if (operatorData.role === "OPERATOR" && operatorData.wilayah) {
-      timelineWhere.OR.push({ wilayah: operatorData.wilayah })
-    } else if (operatorData.role === "OPERATOR_UNIT_KERJA" && operatorData.unitKerja?.wilayah) {
-      timelineWhere.OR.push({ wilayah: operatorData.unitKerja.wilayah })
-    }
-
+    // Get active timelines for this region
     const activeTimelines = await prisma.timeline.findMany({
-      where: timelineWhere,
+      where: {
+        isActive: true,
+        OR: [
+          { wilayah: null }, // Timeline untuk semua wilayah
+          { wilayah: operatorData.wilayah }, // Timeline khusus wilayah operator
+        ],
+      },
       orderBy: [
         { priority: "desc" },
         { startDate: "asc" },
@@ -152,7 +108,11 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
     // Count proposals by status
     const statusCounts = await prisma.promotionProposal.groupBy({
       by: ["status"],
-      where: whereCondition,
+      where: {
+        pegawai: {
+          wilayah: operatorData.wilayah,
+        },
+      },
       _count: true,
     })
 
@@ -160,7 +120,11 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
     const documentStats = await prisma.proposalDocument.groupBy({
       by: ["status"],
       where: {
-        proposal: whereCondition,
+        proposal: {
+          pegawai: {
+            wilayah: operatorData.wilayah,
+          },
+        },
       },
       _count: true,
     })

@@ -138,7 +138,11 @@ export default function OperatorSekolahDashboardPage() {
               <School className="h-8 w-8 mr-3" />
               <div>
                 <h1 className="text-3xl font-bold">Dashboard Operator Sekolah</h1>
-                <p className="text-purple-100">{stats.unitKerja || 'Unit Kerja Anda'}</p>
+                <p className="text-purple-100">
+                  {typeof stats.unitKerja === 'object' && stats.unitKerja !== null
+                    ? stats.unitKerja.nama || 'Unit Kerja Anda'
+                    : stats.unitKerja || 'Unit Kerja Anda'}
+                </p>
               </div>
             </div>
 

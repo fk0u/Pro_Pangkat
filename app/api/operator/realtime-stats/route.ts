@@ -1,6 +1,13 @@
-import { createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
+import { NextRequest } from "next/server"
+import { withAuth, createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-import { StatusProposal, StatusDokumen } from "@prisma/client"
+import { StatusProposal, StatusDokumen, Wilayah } from "@prisma/client"
+
+interface AuthenticatedUser {
+  id: string
+  role: string
+  wilayah?: Wilayah
+}
 
 interface RealtimeStats {
   timestamp: string
@@ -40,17 +47,16 @@ interface RealtimeStats {
   }
 }
 
-export const GET = async () => {
+export const GET = withAuth(async (req: NextRequest, user: AuthenticatedUser) => {
   try {
-    // TODO: Add proper authentication
     // Hanya operator yang bisa mengakses endpoint ini
-    // if (user.role !== "OPERATOR") {
-    //   return createErrorResponse("Access denied", 403)
-    // }
+    if (user.role !== "OPERATOR") {
+      return createErrorResponse("Access denied", 403)
+    }
 
-    // Get first operator's wilayah for now
-    const operatorData = await prisma.user.findFirst({
-      where: { role: "OPERATOR" },
+    // Get operator's wilayah
+    const operatorData = await prisma.user.findUnique({
+      where: { id: user.id },
       select: { wilayah: true, name: true },
     })
 
@@ -327,15 +333,14 @@ export const GET = async () => {
     const errorMessage = error instanceof Error ? error.message : "Failed to fetch realtime stats"
     return createErrorResponse(errorMessage)
   }
-}
+})
 
 // WebSocket-like endpoint for continuous updates (using Server-Sent Events)
-export const POST = async () => {
+export const POST = withAuth(async (req: NextRequest, user: AuthenticatedUser) => {
   try {
-    // TODO: Add proper authentication
-    // if (user.role !== "OPERATOR") {
-    //   return createErrorResponse("Access denied", 403)
-    // }
+    if (user.role !== "OPERATOR") {
+      return createErrorResponse("Access denied", 403)
+    }
 
     // This would be used to establish SSE connection for real-time updates
     // For now, return configuration for client-side polling
@@ -355,4 +360,4 @@ export const POST = async () => {
     const errorMessage = error instanceof Error ? error.message : "Failed to configure realtime stats"
     return createErrorResponse(errorMessage)
   }
-}
+})

@@ -52,26 +52,6 @@ enum Wilayah {
   SAMARINDA
 }
 
-model WilayahMaster {
-  id               String    @id @default(cuid())
-  kode             String    @unique // BALIKPAPAN_PPU, KUTIM_BONTANG, dll
-  nama             String    // Nama singkat
-  namaLengkap      String    // Nama lengkap
-  ibukota          String?   // Ibukota wilayah
-  koordinat        String?   // Koordinat geografis
-  luasWilayah      Int?      // Luas dalam km2
-  jumlahKecamatan  Int?      // Jumlah kecamatan
-  isActive         Boolean   @default(true)
-  
-  // Relasi
-  unitKerja        UnitKerja[]
-  users            User[]
-  timelines        Timeline[]
-  
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-}
-
 model User {
   id                 String           @id @default(cuid())
   nip                String           @unique
@@ -84,23 +64,12 @@ model User {
   // Data Kepegawaian
   golongan           String?
   tmtGolongan        DateTime?
+  tmtJabatan         DateTime?        // TMT Jabatan
   jabatan            String?
-  tmtJabatan         DateTime?
   jenisJabatan       String?
-  unitKerjaId        String? // Foreign key ke UnitKerja
-  unitKerja          UnitKerja? @relation(fields: [unitKerjaId], references: [id])
-  
-  // Data Pendidikan
-  pendidikan         String?
-  jurusan            String?
-  tahunLulus         String?
-  
-  // Relasi Wilayah Baru
-  wilayahId          String? // Foreign key ke WilayahMaster (untuk operator)
-  wilayahRelasi      WilayahMaster? @relation(fields: [wilayahId], references: [id])
-  
-  // Backward compatibility (akan dihapus nanti)
-  wilayah            Wilayah? // Khusus untuk Operator
+  unitKerjaId        String?          // Foreign key ke UnitKerja
+  unitKerja          UnitKerja?       @relation(fields: [unitKerjaId], references: [id])
+  wilayah            Wilayah?         // Khusus untuk Operator
   
   // Data Pribadi
   phone              String?
@@ -115,49 +84,25 @@ model User {
 
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
-  
-  @@index([wilayahId])
 }
 
 model UnitKerja {
-  id            String   @id @default(cuid())
-  nama          String   @unique
-  npsn          String?  @unique
-  jenjang       String   // SD, SMP, SMA, SMK, UMUM
-  alamat        String?
-  kecamatan     String?
-  kabupaten     String?
-  provinsi      String?
-  
-  // Data koordinat geografis
-  latitude      Float?
-  longitude     Float?
-  
-  // Data Sekolah dari API eksternal
-  bentukSekolah String?   // SD, SMP, SMA, SMK, dll.
-  statusSekolah String?   // NEGERI, SWASTA
-  lastSyncedAt  DateTime?
-  
-  // Relasi Wilayah Baru
-  wilayahId     String?
-  wilayahRelasi WilayahMaster? @relation(fields: [wilayahId], references: [id])
-  
-  // Backward compatibility (akan dihapus nanti)
-  wilayah       Wilayah
-  
-  status        String   @default("Aktif")
-  kepalaSekolah String?
-  telepon       String?
-  email         String?
-  website       String?
+  id         String   @id @default(cuid())
+  nama       String   @unique
+  npsn       String?  @unique
+  jenjang    String   // SD, SMP, SMA, SMK, UMUM
+  alamat     String?
+  kecamatan  String?
+  wilayah    Wilayah
+  status     String   @default("Aktif")
   
   // Relasi
-  pegawai       User[]
+  pegawai    User[]
   
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
   
-  @@index([wilayahId])
+  @@index([wilayah])
   @@index([jenjang])
 }
 
@@ -239,11 +184,7 @@ model Timeline {
   isActive    Boolean  @default(true)
   priority    Int      @default(1) // 1=Normal, 2=Penting, 3=Mendesak
   
-  // Relasi Wilayah Baru
-  wilayahId   String?
-  wilayahRelasi WilayahMaster? @relation(fields: [wilayahId], references: [id])
-  
-  // Backward compatibility (akan dihapus nanti)
+  // Wilayah yang berlaku (kosong = semua wilayah)
   wilayah     Wilayah?
   
   // Metadata
@@ -252,8 +193,6 @@ model Timeline {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  @@index([wilayahId])
 }
 
 model DetailedDocumentInfo {
@@ -297,16 +236,4 @@ model Notification {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-}
-
-model SystemSetting {
-  category    String
-  key         String
-  value       String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@id([category, key])
-  @@index([category])
 }

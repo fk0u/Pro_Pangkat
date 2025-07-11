@@ -17,7 +17,6 @@ import {
   Users,
   Shield,
   Settings,
-  Activity,
   BarChart3,
   Bell,
   FolderOpen,
@@ -98,9 +97,7 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
           { title: "Manajemen Pengguna", url: "/admin/users", icon: Users },
           { title: "Role & Hak Akses", url: "/admin/roles", icon: Shield },
           { title: "Jadwal", url: "/admin/timeline", icon: Calendar },
-          { title: "Inbox Usulan", url: "/admin/inbox", icon: Mail },
           { title: "Kelola Usulan", url: "/admin/kelola-usulan", icon: FolderOpen },
-          { title: "Log Aktivitas", url: "/admin/activity-logs", icon: Activity },
           { title: "Laporan & Export", url: "/admin/reports", icon: BarChart3 },
           { title: "Notifikasi Global", url: "/admin/notifications", icon: Bell },
           { title: "Pengaturan Sistem", url: "/admin/settings", icon: Settings },
@@ -221,6 +218,7 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
                         alt="Logo Kaltim"
                         width={32}
                         height={32}
+                        style={{ width: 'auto', height: 'auto' }}
                         className="object-contain"
                         unoptimized
                         onError={(e) => {

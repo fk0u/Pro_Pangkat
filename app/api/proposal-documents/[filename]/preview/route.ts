@@ -6,7 +6,7 @@ import { join } from "path"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { filename: string } }
 ) {
   try {
     const session = await getSession()
@@ -17,7 +17,7 @@ export async function GET(
 
     // Find the document
     const document = await prisma.proposalDocument.findFirst({
-      where: { id: params.id },
+      where: { id: params.filename },
       include: {
         proposal: {
           include: {
@@ -48,40 +48,40 @@ export async function GET(
       const extension = document.fileName.split('.').pop()?.toLowerCase()
       let contentType = 'application/octet-stream'
       
-      switch (extension) {
-        case 'pdf':
-          contentType = 'application/pdf'
-          break
-        case 'jpg':
-        case 'jpeg':
-          contentType = 'image/jpeg'
-          break
-        case 'png':
-          contentType = 'image/png'
-          break
-        case 'doc':
-          contentType = 'application/msword'
-          break
-        case 'docx':
-          contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          break
+      if (extension === 'pdf') {
+        contentType = 'application/pdf'
+      } else if (['jpg', 'jpeg'].includes(extension || '')) {
+        contentType = 'image/jpeg'
+      } else if (extension === 'png') {
+        contentType = 'image/png'
       }
-
+      
+      // Log the document access
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user?.id },
+          select: { name: true }
+        })
+        
+        console.log(`Document previewed: ${document.fileName} by ${user?.name || 'Unknown'}`)
+      } catch (logError) {
+        console.error('Error logging document preview:', logError)
+      }
+      
+      // Return the file with inline display header
       return new NextResponse(fileBuffer, {
         headers: {
           'Content-Type': contentType,
-          'Content-Disposition': 'inline'
+          'Content-Disposition': `inline; filename="${document.fileName}"`,
+          'Content-Length': fileBuffer.length.toString(),
         }
       })
     } catch (fileError) {
-      console.error("Error reading file:", fileError)
-      return NextResponse.json({ error: "File not found on server" }, { status: 404 })
+      console.error('Error reading file:', fileError)
+      return NextResponse.json({ error: "File not found" }, { status: 404 })
     }
   } catch (error) {
-    console.error("Error previewing document:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    console.error('Error previewing document:', error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -68,6 +68,9 @@ export default function OperatorSekolahLaporanPage() {
   const [statusData, setStatusData] = useState<StatusDataItem[]>([])
   const [golonganData, setGolonganData] = useState<GolonganDataItem[]>([])
 
+  const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+
   const { toast } = useToast()
 
   useEffect(() => {
@@ -75,12 +78,13 @@ export default function OperatorSekolahLaporanPage() {
     
     const fetchData = async () => {
       setLoading(true)
+      setError(null)
       try {
         // Add timeout to prevent hanging
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
         
-        const response = await fetch(`/api/operator-sekolah/laporan?period=${periode}`, {
+        const response = await fetch(`/api/operator-sekolah/laporan?period=${periode}&retry=${retryCount}`, {
           signal: controller.signal
         })
         
@@ -105,9 +109,12 @@ export default function OperatorSekolahLaporanPage() {
         } else if (isMounted) {
           // Show error if API fails
           console.error("API failed with status:", response.status)
+          const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+          const errorMsg = errorData.message || 'Gagal memuat data laporan dari server'
+          setError(errorMsg)
           toast({
             title: "Error",
-            description: "Gagal memuat data laporan dari server",
+            description: errorMsg,
             variant: "destructive"
           })
         }
@@ -116,9 +123,11 @@ export default function OperatorSekolahLaporanPage() {
           console.error("Error fetching laporan data:", error)
           // Show error message for failed API calls
           if (!(error instanceof Error) || error.name !== 'AbortError') {
+            const errorMsg = error instanceof Error ? error.message : 'Gagal memuat data laporan'
+            setError(errorMsg)
             toast({
               title: "Error",
-              description: "Gagal memuat data laporan. Silakan refresh halaman.",
+              description: errorMsg + ". Silakan refresh halaman.",
               variant: "destructive"
             })
           }
@@ -139,7 +148,7 @@ export default function OperatorSekolahLaporanPage() {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [periode, toast])
+  }, [periode, toast, retryCount])
 
   const exportToExcel = async () => {
     try {
@@ -259,6 +268,25 @@ export default function OperatorSekolahLaporanPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
             <p>Memuat data laporan...</p>
           </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userType="operator-sekolah">
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="text-center mb-4">
+            <p className="text-destructive font-semibold">Error: {error}</p>
+            <p className="text-muted-foreground mt-1">Gagal memuat data laporan</p>
+          </div>
+          <Button 
+            onClick={() => setRetryCount(prev => prev + 1)}
+            className="mt-4"
+          >
+            Coba Lagi
+          </Button>
         </div>
       </DashboardLayout>
     )

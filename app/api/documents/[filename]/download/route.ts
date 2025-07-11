@@ -7,7 +7,7 @@ import { logDocumentActivity } from "@/lib/activity-logger"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { filename: string } }
 ) {
   try {
     const session = await getSession()
@@ -18,7 +18,7 @@ export async function GET(
 
     // Find the document
     const document = await prisma.proposalDocument.findFirst({
-      where: { id: params.id },
+      where: { id: params.filename },
       include: {
         proposal: {
           include: {
@@ -56,55 +56,47 @@ export async function GET(
       const extension = document.fileName.split('.').pop()?.toLowerCase()
       let contentType = 'application/octet-stream'
       
-      switch (extension) {
-        case 'pdf':
-          contentType = 'application/pdf'
-          break
-        case 'jpg':
-        case 'jpeg':
-          contentType = 'image/jpeg'
-          break
-        case 'png':
-          contentType = 'image/png'
-          break
-        case 'doc':
-          contentType = 'application/msword'
-          break
-        case 'docx':
-          contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          break
+      if (extension === 'pdf') {
+        contentType = 'application/pdf'
+      } else if (['jpg', 'jpeg'].includes(extension || '')) {
+        contentType = 'image/jpeg'
+      } else if (extension === 'png') {
+        contentType = 'image/png'
       }
-
-      // Log document view activity
-      await logDocumentActivity('VIEW', document.id, session, {
-        proposalId: document.proposalId,
-        fileName: document.fileName,
-        fileType: contentType,
-        fileSize: document.fileSize,
-        documentName: document.documentRequirement?.name || 'Dokumen',
-        documentCode: document.documentRequirement?.code || '',
-        pegawaiName: document.proposal.pegawai.name,
-        pegawaiNip: document.proposal.pegawai.nip,
-        viewedBy: session.user?.role,
-        viewerId: session.user?.id,
-        action: 'DOWNLOAD'
-      })
-
+      
+      // Log the document download
+      try {
+        await logDocumentActivity(
+          session.user?.id || '',
+          'DOCUMENT_DOWNLOAD',
+          {
+            documentId: document.id,
+            documentName: document.fileName,
+            requirementCode: document.documentRequirement.code,
+            requirementName: document.documentRequirement.name,
+            proposalId: document.proposal.id,
+            pegawaiName: document.proposal.pegawai.name,
+            pegawaiNip: document.proposal.pegawai.nip,
+          }
+        )
+      } catch (logError) {
+        console.error('Error logging document download:', logError)
+      }
+      
+      // Return the file with download headers
       return new NextResponse(fileBuffer, {
         headers: {
           'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${document.fileName}"`
+          'Content-Disposition': `attachment; filename="${document.fileName}"`,
+          'Content-Length': fileBuffer.length.toString(),
         }
       })
     } catch (fileError) {
-      console.error("Error reading file:", fileError)
-      return NextResponse.json({ error: "File not found on server" }, { status: 404 })
+      console.error('Error reading file:', fileError)
+      return NextResponse.json({ error: "File not found" }, { status: 404 })
     }
   } catch (error) {
-    console.error("Error downloading document:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    console.error('Error downloading document:', error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -79,6 +79,7 @@ export default function OperatorProfilPage() {
 
   useEffect(() => {
     fetchProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchProfile = async () => {
@@ -88,27 +89,29 @@ export default function OperatorProfilPage() {
       
       if (response.ok) {
         const result = await response.json()
-        setProfile(result.profile)
-        setFormData({
-          nama: result.profile.nama || "",
-          email: result.profile.email || "",
-          noHp: result.profile.noHp || "",
-          alamat: result.profile.alamat || "",
-          password: "",
-          confirmPassword: ""
-        })
+        
+        if (result.success && result.profile) {
+          setProfile(result.profile)
+          setFormData({
+            nama: result.profile.nama || "",
+            email: result.profile.email || "",
+            noHp: result.profile.noHp || "",
+            alamat: result.profile.alamat || "",
+            password: "",
+            confirmPassword: ""
+          })
+        } else {
+          throw new Error(result.message || "Failed to fetch profile data")
+        }
       } else {
-        toast({
-          title: "Error",
-          description: "Gagal memuat data profil",
-          variant: "destructive"
-        })
+        const errorData = await response.json()
+        throw new Error(errorData.message || "Failed to fetch profile data")
       }
     } catch (error) {
       console.error("Error fetching profile:", error)
       toast({
         title: "Error",
-        description: "Terjadi kesalahan saat memuat profil",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat profil",
         variant: "destructive"
       })
     } finally {
@@ -118,6 +121,16 @@ export default function OperatorProfilPage() {
 
   const handleSaveProfile = async () => {
     if (!profile) return
+
+    // Basic validation
+    if (!formData.nama.trim()) {
+      toast({
+        title: "Error",
+        description: "Nama tidak boleh kosong",
+        variant: "destructive"
+      })
+      return
+    }
 
     // Validate password if provided
     if (formData.password) {
@@ -142,40 +155,47 @@ export default function OperatorProfilPage() {
 
     try {
       setSaving(true)
+      
+      const updateData = {
+        nama: formData.nama.trim(),
+        email: formData.email.trim() || null,
+        noHp: formData.noHp.trim() || null,
+        alamat: formData.alamat.trim() || null
+      }
+      
+      // Only add password if provided
+      if (formData.password) {
+        Object.assign(updateData, { password: formData.password });
+      }
+      
       const response = await fetch('/api/operator/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nama: formData.nama,
-          email: formData.email,
-          noHp: formData.noHp,
-          alamat: formData.alamat,
-          ...(formData.password && { password: formData.password })
-        })
+        body: JSON.stringify(updateData)
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        setProfile(result.profile)
+      const result = await response.json()
+      
+      if (response.ok && result.success) {
+        // Make sure we update the profile with the latest data including statistics
+        await fetchProfile()
+        
+        // Reset form and exit edit mode
         setEditing(false)
-        setFormData({ ...formData, password: "", confirmPassword: "" })
+        setFormData(prev => ({ ...prev, password: "", confirmPassword: "" }))
+        
         toast({
           title: "Berhasil!",
-          description: "Profil berhasil diperbarui"
+          description: "Profil berhasil diperbarui",
         })
       } else {
-        const error = await response.json()
-        toast({
-          title: "Error",
-          description: error.error || "Gagal memperbarui profil",
-          variant: "destructive"
-        })
+        throw new Error(result.error || result.message || 'Gagal memperbarui profil')
       }
     } catch (error) {
       console.error("Error updating profile:", error)
       toast({
         title: "Error",
-        description: "Terjadi kesalahan saat memperbarui profil",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memperbarui profil",
         variant: "destructive"
       })
     } finally {

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,25 +12,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { 
   Search, 
   Filter, 
-  Plus, 
   Eye, 
-  Edit, 
-  Download,
+  FileText,
   CheckCircle,
   Clock,
   AlertTriangle,
   XCircle,
-  FileText,
-  FileSpreadsheet,
-  Loader2,
-  X,
-  ArrowLeft,
-  User,
-  ExternalLink
+  Loader2
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -42,20 +34,20 @@ interface Usulan {
   jabatan: string
   unitKerja: string
   tanggalUsulan: string
-  status: "menunggu_verifikasi" | "sedang_diproses" | "disetujui" | "ditolak" | "butuh_perbaikan"
+  status: "menunggu_verifikasi" | "sedang_diproses" | "disetujui" | "ditolak" | "butuh_perbaikan" | "ditarik"
   keterangan?: string
   dokumenLengkap: boolean
   createdAt: string
   updatedAt: string
 }
 
-interface PegawaiOption {
-  id: string
-  nip: string
-  nama: string
-  jabatan: string
-  golongan: string
-  unitKerja: string
+interface Document {
+  id: string;
+  fileName: string;
+  documentType: string;
+  status: string;
+  previewUrl: string;
+  downloadUrl: string;
 }
 
 const getStatusBadge = (status: string) => {
@@ -64,7 +56,8 @@ const getStatusBadge = (status: string) => {
     sedang_diproses: { variant: "default" as const, label: "Sedang Diproses", icon: Clock },
     disetujui: { variant: "default" as const, label: "Disetujui", icon: CheckCircle, className: "bg-green-500" },
     ditolak: { variant: "destructive" as const, label: "Ditolak", icon: XCircle },
-    butuh_perbaikan: { variant: "outline" as const, label: "Butuh Perbaikan", icon: AlertTriangle, className: "border-orange-500 text-orange-600" }
+    butuh_perbaikan: { variant: "outline" as const, label: "Butuh Perbaikan", icon: AlertTriangle, className: "border-orange-500 text-orange-600" },
+    ditarik: { variant: "outline" as const, label: "Ditarik", icon: XCircle, className: "border-gray-400 text-gray-500" }
   }
 
   const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.menunggu_verifikasi
@@ -78,7 +71,33 @@ const getStatusBadge = (status: string) => {
   )
 }
 
+// Function to determine the next golongan level
+const getNextGolongan = (currentGolongan: string): string => {
+  const golonganMap: Record<string, string> = {
+    'I/a': 'I/b',
+    'I/b': 'I/c',
+    'I/c': 'I/d',
+    'I/d': 'II/a',
+    'II/a': 'II/b',
+    'II/b': 'II/c',
+    'II/c': 'II/d',
+    'II/d': 'III/a',
+    'III/a': 'III/b',
+    'III/b': 'III/c',
+    'III/c': 'III/d',
+    'III/d': 'IV/a',
+    'IV/a': 'IV/b',
+    'IV/b': 'IV/c',
+    'IV/c': 'IV/d',
+    'IV/d': 'IV/e',
+    'IV/e': 'IV/e' // No higher level
+  }
+  
+  return golonganMap[currentGolongan] || 'III/b' // Default to III/b if unknown
+}
+
 export default function OperatorSekolahUsulanPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [usulanData, setUsulanData] = useState<Usulan[]>([])
   const [filteredData, setFilteredData] = useState<Usulan[]>([])
@@ -86,32 +105,43 @@ export default function OperatorSekolahUsulanPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedUsulan, setSelectedUsulan] = useState<Usulan | null>(null)
+  const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false)
+  const [processAction, setProcessAction] = useState<'APPROVE' | 'REJECT' | 'RETURN'>('APPROVE')
+  const [processNotes, setProcessNotes] = useState('')
+  const [processingAction, setProcessingAction] = useState(false)
+  
   const { toast } = useToast()
 
   // Fetch data dari API
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/operator-sekolah/usulan')
       
       if (response.ok) {
         const data = await response.json()
-        // Transform API data to match interface
-        const transformedData = data.usulan.map((item: any) => ({
-          id: item.id,
-          nip: item.pegawai?.nip || '',
-          nama: item.pegawai?.name || '',
-          golonganAsal: item.pegawai?.golongan || 'III/a',
-          golonganTujuan: 'III/b', // Default progression
-          jabatan: item.pegawai?.jabatan || '',
-          unitKerja: item.pegawai?.unitKerja || '',
-          tanggalUsulan: item.createdAt ? new Date(item.createdAt).toLocaleDateString('id-ID') : '',
-          status: mapApiStatusToLocal(item.status),
-          keterangan: item.notes || '',
-          dokumenLengkap: (item.documents || []).length > 0,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt || item.createdAt
-        }))
+        const transformedData = data.usulan
+          .map((item: any) => ({
+            id: item.id,
+            nip: item.pegawai?.nip || '',
+            nama: item.pegawai?.name || '',
+            golonganAsal: item.pegawai?.golongan || 'III/a',
+            golonganTujuan: getNextGolongan(item.pegawai?.golongan || 'III/a'),
+            jabatan: item.pegawai?.jabatan || '',
+            unitKerja: typeof item.pegawai?.unitKerja === 'string' 
+              ? item.pegawai.unitKerja 
+              : typeof item.pegawai?.unitKerja === 'object' && item.pegawai?.unitKerja !== null
+                ? (item.pegawai.unitKerja.nama || '') 
+                : '',
+            tanggalUsulan: item.createdAt ? new Date(item.createdAt).toLocaleDateString('id-ID') : '',
+            status: mapApiStatusToLocal(item.status),
+            keterangan: item.notes || '',
+            dokumenLengkap: (item.documents || []).length > 0,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt || item.createdAt
+          }))
+          // Filter out usulan with status "ditarik" as they should not be shown
+          .filter((usulan: Usulan) => usulan.status !== 'ditarik')
         
         setUsulanData(transformedData)
       } else {
@@ -131,7 +161,7 @@ export default function OperatorSekolahUsulanPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
   // Map API status to local status
   const mapApiStatusToLocal = (apiStatus: string) => {
@@ -145,19 +175,25 @@ export default function OperatorSekolahUsulanPage() {
       'DIPROSES_ADMIN': 'sedang_diproses',
       'SELESAI': 'disetujui',
       'DITOLAK': 'ditolak',
+      'DITOLAK_SEKOLAH': 'ditolak',
+      'DITOLAK_DINAS': 'ditolak',
+      'DITOLAK_ADMIN': 'ditolak',
       'DIKEMBALIKAN_OPERATOR': 'butuh_perbaikan',
       'DIKEMBALIKAN_ADMIN': 'butuh_perbaikan',
       'MENUNGGU_VERIFIKASI_DINAS': 'menunggu_verifikasi',
       'MENUNGGU_VERIFIKASI_SEKOLAH': 'menunggu_verifikasi',
+      'MENUNGGU_KONFIRMASI': 'menunggu_verifikasi',
       'PERLU_PERBAIKAN_DARI_DINAS': 'butuh_perbaikan',
-      'PERLU_PERBAIKAN_DARI_SEKOLAH': 'butuh_perbaikan'
+      'PERLU_PERBAIKAN_DARI_SEKOLAH': 'butuh_perbaikan',
+      'DISETUJUI_SEKOLAH': 'sedang_diproses',
+      'DITARIK': 'ditarik' // Add status for withdrawn proposals
     }
     return statusMap[apiStatus] || 'menunggu_verifikasi'
   }
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
 
   useEffect(() => {
     let filtered = usulanData
@@ -192,19 +228,129 @@ export default function OperatorSekolahUsulanPage() {
       diproses: usulanData.filter(u => u.status === 'sedang_diproses').length,
       disetujui: usulanData.filter(u => u.status === 'disetujui').length,
       ditolak: usulanData.filter(u => u.status === 'ditolak').length,
-      perbaikan: usulanData.filter(u => u.status === 'butuh_perbaikan').length
+      perbaikan: usulanData.filter(u => u.status === 'butuh_perbaikan').length,
+      ditarik: usulanData.filter(u => u.status === 'ditarik').length
     }
     return stats
   }
 
+  // Fungsi handleViewDocuments dan handleApproveDocument dihapus karena tombol dokumen sudah tidak ada
+  // dan operator-sekolah tidak boleh menyetujui dokumen
+
   const stats = getStatsData()
+  
+  /* 
+  // These functions are kept for reference but not currently used
+  const handleRejectDocument = async (documentId: string) => {
+    try {
+      const response = await fetch(`/api/documents/${documentId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'DITOLAK' })
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Berhasil",
+          description: "Dokumen telah ditolak",
+          variant: "destructive"
+        })
+        // Refresh data after rejection
+        fetchData()
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "Gagal",
+          description: errorData.message || "Gagal menolak dokumen",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error("Error rejecting document:", error)
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan saat menolak dokumen",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleApproveProposal = (usulan: Usulan) => {
+    if (!usulan.dokumenLengkap) {
+      toast({
+        title: "Tidak dapat disetujui",
+        description: "Pastikan semua dokumen telah diunggah dan disetujui terlebih dahulu",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    setSelectedUsulan(usulan)
+    setIsProcessingModalOpen(true)
+    setProcessAction('APPROVE')
+  }
+  */
+
+  const handleSubmitProcess = async () => {
+    if (!selectedUsulan) return
+    
+    try {
+      setProcessingAction(true)
+      
+      const response = await fetch('/api/operator-sekolah/usulan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          usulanId: selectedUsulan.id,
+          action: processAction,
+          notes: processNotes
+        })
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Berhasil",
+          description: processAction === 'APPROVE' 
+            ? "Usulan telah disetujui dan diteruskan ke operator" 
+            : processAction === 'REJECT'
+              ? "Usulan telah ditolak"
+              : "Usulan telah dikembalikan untuk perbaikan",
+          variant: processAction === 'REJECT' ? "destructive" : "default"
+        })
+        // Close modal and refresh data
+        setIsProcessingModalOpen(false)
+        setProcessNotes('')
+        fetchData()
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "Gagal",
+          description: errorData.message || "Gagal memproses usulan",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error("Error processing proposal:", error)
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan saat memproses usulan",
+        variant: "destructive"
+      })
+    } finally {
+      setProcessingAction(false)
+    }
+  }
 
   if (loading) {
     return (
       <DashboardLayout userType="operator-sekolah">
-        <div className="flex items-center justify-center h-64">
+        <div className="flex justify-center items-center h-[80vh]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
             <p>Memuat data usulan...</p>
           </div>
         </div>
@@ -308,6 +454,7 @@ export default function OperatorSekolahUsulanPage() {
                     <SelectItem value="disetujui">Disetujui</SelectItem>
                     <SelectItem value="ditolak">Ditolak</SelectItem>
                     <SelectItem value="butuh_perbaikan">Butuh Perbaikan</SelectItem>
+                    <SelectItem value="ditarik">Ditarik</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -374,11 +521,40 @@ export default function OperatorSekolahUsulanPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleViewUsulan(usulan)}
+                              onClick={() => router.push(`/operator-sekolah/usulan/${usulan.id}`)}
                             >
                               <Eye className="h-4 w-4 mr-1" />
                               Detail
                             </Button>
+                            {(usulan.status === 'menunggu_verifikasi') && (
+                              <>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedUsulan(usulan);
+                                    setProcessAction('REJECT');
+                                    setIsProcessingModalOpen(true);
+                                  }}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Tolak
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => {
+                                    setSelectedUsulan(usulan);
+                                    setProcessAction('APPROVE');
+                                    setIsProcessingModalOpen(true);
+                                  }}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Setujui
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -402,123 +578,51 @@ export default function OperatorSekolahUsulanPage() {
             
             {selectedUsulan && (
               <div className="space-y-6 mt-4">
-                {/* Data Pegawai dan Usulan */}
-                <div className="grid md:grid-cols-2 gap-6">
-                  {/* Data Pegawai */}
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-lg border-b pb-2">Data Pegawai</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">NIP</Label>
-                        <div className="mt-1 p-3 bg-white rounded border border-gray-300 font-mono text-sm text-gray-900">
-                          {selectedUsulan.nip}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Nama</Label>
-                        <div className="mt-1 p-3 bg-white rounded border border-gray-300 text-sm text-gray-900 font-medium">
-                          {selectedUsulan.nama}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Jabatan</Label>
-                        <div className="mt-1 p-3 bg-white rounded border border-gray-300 text-sm text-gray-900">
-                          {selectedUsulan.jabatan}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Unit Kerja</Label>
-                        <div className="mt-1 p-3 bg-white rounded border border-gray-300 text-sm text-gray-900">
-                          {selectedUsulan.unitKerja}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Data Usulan */}
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-lg border-b pb-2">Data Usulan</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Kenaikan Pangkat</Label>
-                        <div className="mt-1 p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded border border-blue-200 text-sm">
-                          <span className="font-semibold text-blue-700">
-                            {selectedUsulan.golonganAsal}
-                          </span>
-                          <span className="mx-2 text-gray-500">→</span>
-                          <span className="font-semibold text-green-700">
-                            {selectedUsulan.golonganTujuan}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Periode</Label>
-                        <div className="mt-1 p-3 bg-white rounded border border-gray-300 text-sm text-gray-900">
-                          2025
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Status</Label>
-                        <div className="mt-1 p-3 bg-white rounded border border-gray-300">
-                          {getStatusBadge(selectedUsulan.status)}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Tanggal Diajukan</Label>
-                        <div className="mt-1 p-3 bg-white rounded border border-gray-300 text-sm text-gray-900">
-                          {selectedUsulan.tanggalUsulan}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-600">Keterangan</Label>
-                        <div className="mt-1 p-3 bg-yellow-50 rounded border border-yellow-300 text-sm text-yellow-800 font-medium">
-                          Harap mengupload dokumen
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status Dokumen */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-lg border-b pb-2">Status Dokumen</h4>
-                  
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-5 rounded-lg">
-                    <div className="flex gap-4">
-                      <div className="bg-blue-100 p-2 rounded-full">
-                        <AlertTriangle className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-blue-900 mb-1">Informasi Penting</p>
-                        <p className="text-sm text-blue-800 leading-relaxed">
-                          Pegawai <strong className="text-blue-900">{selectedUsulan.nama}</strong> harus login dan mengupload 
-                          dokumen yang diperlukan. Usulan akan diproses setelah semua dokumen lengkap.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="bg-gray-100 p-3 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                      <FileText className="h-8 w-8 text-gray-400" />
-                    </div>
-                    <p className="font-medium text-gray-700 mb-1">Belum ada dokumen yang diupload</p>
-                    <p className="text-sm text-gray-500">Pegawai perlu mengupload dokumen persyaratan</p>
-                  </div>
-                </div>
+                <p>Detail usulan akan ditampilkan di sini...</p>
               </div>
             )}
-            
-            <DialogFooter className="mt-6 pt-4 border-t border-gray-200">
-              <Button 
-                variant="outline" 
-                onClick={() => setIsViewModalOpen(false)}
-                className="px-6 border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                Tutup
+          </DialogContent>
+        </Dialog>
+
+        {/* Process Proposal Modal */}
+        <Dialog open={isProcessingModalOpen} onOpenChange={setIsProcessingModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {processAction === 'APPROVE' ? 'Setujui Usulan' : 
+                 processAction === 'REJECT' ? 'Tolak Usulan' : 'Kembalikan Usulan'}
+              </DialogTitle>
+              <DialogDescription>
+                {processAction === 'APPROVE' 
+                  ? 'Usulan akan disetujui dan diteruskan ke operator untuk diproses lebih lanjut.'
+                  : processAction === 'REJECT'
+                    ? 'Usulan akan ditolak dan tidak dapat diproses lebih lanjut.'
+                    : 'Usulan akan dikembalikan ke pegawai untuk perbaikan.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="notes">Catatan</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Tambahkan catatan (opsional)"
+                  value={processNotes}
+                  onChange={(e) => setProcessNotes(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsProcessingModalOpen(false)}>
+                Batal
               </Button>
-              <Button className="px-6 bg-blue-600 hover:bg-blue-700 text-white">
-                Edit Usulan
+              <Button 
+                variant={processAction === 'REJECT' ? "destructive" : "default"}
+                onClick={handleSubmitProcess}
+                disabled={processingAction}
+              >
+                {processingAction && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {processAction === 'APPROVE' ? 'Setujui dan Teruskan' : 
+                 processAction === 'REJECT' ? 'Tolak Usulan' : 'Kembalikan Usulan'}
               </Button>
             </DialogFooter>
           </DialogContent>

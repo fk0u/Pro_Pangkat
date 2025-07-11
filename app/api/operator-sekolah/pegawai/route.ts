@@ -31,7 +31,25 @@ export async function GET(request: NextRequest) {
       select: { unitKerja: true }
     })
 
-    if (!user?.unitKerja) {
+    if (!user) {
+      return NextResponse.json({ message: 'User not found' }, { status: 400 })
+    }
+
+    // Extract unitKerja ID based on whether it's a string or an object
+    let unitKerjaId = null;
+    if (typeof user.unitKerja === 'string') {
+      // Try to find the unitKerja by name
+      const unitKerjaByName = await prisma.unitKerja.findFirst({
+        where: { nama: user.unitKerja },
+        select: { id: true }
+      });
+      unitKerjaId = unitKerjaByName?.id;
+    } else if (typeof user.unitKerja === 'object' && user.unitKerja !== null) {
+      // If it's already an object with an ID
+      unitKerjaId = (user.unitKerja as { id: string }).id;
+    }
+
+    if (!unitKerjaId) {
       return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
     }
 
@@ -45,7 +63,7 @@ export async function GET(request: NextRequest) {
     // Build where clause
     const whereClause = {
       role: "PEGAWAI" as const,
-      unitKerja: user.unitKerja,
+      unitKerjaId: unitKerjaId,
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' as const } },
@@ -85,6 +103,13 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil(totalCount / limit)
 
+    // Get the unit kerja name
+    const unitKerjaData = await prisma.unitKerja.findUnique({
+      where: { id: unitKerjaId },
+      select: { nama: true }
+    });
+    const unitKerjaNama = unitKerjaData?.nama || 'Unknown';
+
     return NextResponse.json({
       data: pegawai,
       pagination: {
@@ -94,7 +119,7 @@ export async function GET(request: NextRequest) {
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
       },
-      unitKerja: user.unitKerja,
+      unitKerja: unitKerjaNama,
     })
   } catch (error) {
     console.error('Pegawai API error:', error)

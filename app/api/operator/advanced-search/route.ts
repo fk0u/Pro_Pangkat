@@ -1,7 +1,13 @@
 import { NextRequest } from "next/server"
-import { createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
+import { withAuth, createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-import { StatusProposal, StatusDokumen } from "@prisma/client"
+import { StatusProposal, StatusDokumen, Wilayah } from "@prisma/client"
+
+interface AuthenticatedUser {
+  id: string
+  role: string
+  wilayah?: Wilayah
+}
 
 interface AdvancedSearchFilters {
   search?: string
@@ -86,17 +92,16 @@ interface SearchResult {
   }
 }
 
-export const POST = async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, user: AuthenticatedUser) => {
   try {
-    // TODO: Add proper authentication
     // Hanya operator yang bisa mengakses endpoint ini
-    // if (user.role !== "OPERATOR") {
-    //   return createErrorResponse("Access denied", 403)
-    // }
+    if (user.role !== "OPERATOR") {
+      return createErrorResponse("Access denied", 403)
+    }
 
-    // Get operator's wilayah - temporary hardcoded
-    const operatorData = await prisma.user.findFirst({
-      where: { role: "OPERATOR" },
+    // Get operator's wilayah
+    const operatorData = await prisma.user.findUnique({
+      where: { id: user.id },
       select: { wilayah: true, name: true },
     })
 
@@ -124,7 +129,7 @@ export const POST = async (req: NextRequest) => {
     } = filters
 
     // Build base where clause
-    const whereClause: Record<string, unknown> = {
+    const whereClause: any = {
       pegawai: {
         wilayah: operatorData.wilayah
       }
@@ -317,11 +322,7 @@ export const POST = async (req: NextRequest) => {
     }
 
     // Remove internal calculation fields
-    const finalProposals = processedProposals.map(proposal => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { _completionRate, _processingTime, ...rest } = proposal
-      return rest
-    })
+    const finalProposals = processedProposals.map(({ _completionRate, _processingTime, ...proposal }) => proposal)
 
     // Calculate summary statistics
     const urgentCount = finalProposals.filter(p => p.priority === "urgent").length
@@ -414,7 +415,7 @@ export const POST = async (req: NextRequest) => {
     const errorMessage = error instanceof Error ? error.message : "Failed to perform advanced search"
     return createErrorResponse(errorMessage)
   }
-}
+})
 
 // Helper function to get status label
 function getStatusLabel(status: StatusProposal): string {
@@ -441,21 +442,10 @@ function getStatusLabel(status: StatusProposal): string {
 }
 
 // Saved searches endpoint
-export const GET = async () => {
+export const GET = withAuth(async (req: NextRequest, user: AuthenticatedUser) => {
   try {
-    // TODO: Add proper authentication
-    // if (user.role !== "OPERATOR") {
-    //   return createErrorResponse("Access denied", 403)
-    // }
-
-    // Get first operator for now
-    const user = await prisma.user.findFirst({
-      where: { role: "OPERATOR" },
-      select: { id: true }
-    })
-
-    if (!user) {
-      return createErrorResponse("No operator found", 404)
+    if (user.role !== "OPERATOR") {
+      return createErrorResponse("Access denied", 403)
     }
 
     // Get saved search filters for this operator
@@ -492,24 +482,13 @@ export const GET = async () => {
     const errorMessage = error instanceof Error ? error.message : "Failed to fetch saved searches"
     return createErrorResponse(errorMessage)
   }
-}
+})
 
 // Save search filters
-export const PUT = async (req: NextRequest) => {
+export const PUT = withAuth(async (req: NextRequest, user: AuthenticatedUser) => {
   try {
-    // TODO: Add proper authentication
-    // if (user.role !== "OPERATOR") {
-    //   return createErrorResponse("Access denied", 403)
-    // }
-
-    // Get first operator for now
-    const user = await prisma.user.findFirst({
-      where: { role: "OPERATOR" },
-      select: { id: true }
-    })
-
-    if (!user) {
-      return createErrorResponse("No operator found", 404)
+    if (user.role !== "OPERATOR") {
+      return createErrorResponse("Access denied", 403)
     }
 
     const { name, filters } = await req.json()
@@ -548,4 +527,4 @@ export const PUT = async (req: NextRequest) => {
     const errorMessage = error instanceof Error ? error.message : "Failed to save search filters"
     return createErrorResponse(errorMessage)
   }
-}
+})

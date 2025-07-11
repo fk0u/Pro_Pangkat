@@ -184,10 +184,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }, { status: 400 })
       }
 
-      // Update status to next level in workflow
-      const newStatus = 'MENUNGGU_VERIFIKASI_SEKOLAH'
+      // Get user to check if they have a unit kerja
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { unitKerja: true }
+      });
+
+      // If user has no unit kerja, route directly to operator (DINAS)
+      // If user has unit kerja, route to operator sekolah first
+      const newStatus = user?.unitKerja ? 'MENUNGGU_VERIFIKASI_SEKOLAH' : 'MENUNGGU_VERIFIKASI_DINAS';
       const newNotes = (existingProposal.notes || '') + 
-        `\n[${new Date().toISOString()}] Disubmit oleh pegawai untuk verifikasi operator sekolah` +
+        `\n[${new Date().toISOString()}] Disubmit oleh pegawai` +
+        (user?.unitKerja ? ' untuk verifikasi operator sekolah' : ' untuk verifikasi operator dinas') +
         (notes ? `: ${notes}` : '')
 
       const updatedProposal = await prisma.promotionProposal.update({

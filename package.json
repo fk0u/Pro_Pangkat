@@ -2,6 +2,7 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@8.15.1",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
@@ -14,7 +15,10 @@
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
     "setup": "npm run db:generate && npm run db:migrate && npm run db:seed && npm run db:sample",
-    "seed:doc-requirements": "tsx scripts/seed-document-requirements.ts"
+    "seed:doc-requirements": "tsx scripts/seed-document-requirements.ts",
+    "turbo:build": "turbo build",
+    "turbo:dev": "turbo dev",
+    "turbo:lint": "turbo lint"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
@@ -47,6 +51,7 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
+    "@react-pdf/renderer": "^4.3.0",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "latest",
     "class-variance-authority": "^0.7.1",
@@ -54,6 +59,7 @@
     "cmdk": "latest",
     "date-fns": "latest",
     "embla-carousel-react": "latest",
+    "file-saver": "^2.0.5",
     "framer-motion": "latest",
     "fs": "latest",
     "input-otp": "latest",
@@ -62,11 +68,13 @@
     "next": "14.2.16",
     "next-themes": "latest",
     "path": "latest",
+    "pdfjs-dist": "^3.11.174",
     "prisma": "latest",
     "react": "^18",
     "react-day-picker": "latest",
     "react-dom": "^18",
     "react-hook-form": "latest",
+    "react-pdf": "^10.0.1",
     "react-resizable-panels": "latest",
     "recharts": "latest",
     "sonner": "latest",
@@ -78,6 +86,7 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
@@ -87,6 +96,7 @@
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.3",
+    "turbo": "^2.1.8",
     "typescript": "^5"
   }
 }

@@ -25,7 +25,7 @@ const safeGetString = (value: unknown): string => {
 }
 
 // Debug logging helper
-const debug = (message: string, data?: any) => {
+const debug = (message: string, data?: unknown) => {
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[DEBUG] ${message}`, data);
   }
@@ -41,7 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { FileText, User, Upload, Trash2, CheckCircle, Info, Search, AlertCircle, XCircle, Database } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 type DocumentRequirement = {
   id: string
@@ -58,6 +58,7 @@ export default function InputUsulanPage() {
   const editProposalId = searchParams.get('edit')
   const [activeTab, setActiveTab] = useState("detail-pegawai")
   const [isDetailComplete, setIsDetailComplete] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [userData, setUserData] = useState<{
     nip?: string;
@@ -124,6 +125,7 @@ export default function InputUsulanPage() {
   const [requiredDocuments, setRequiredDocuments] = useState<DocumentRequirement[]>([])
   const [loadingSimasn, setLoadingSimasn] = useState<Record<string, boolean>>({})
   const [isDownloadingSimasn, setIsDownloadingSimasn] = useState(false)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const fetchUserData = async () => {
     try {
@@ -328,7 +330,8 @@ export default function InputUsulanPage() {
           hasSimASN: doc.hasSimASN,
           description: doc.description
         }))
-        setRequiredDocuments(transformedData)
+        // Paksa semua dokumen menjadi wajib
+        setRequiredDocuments(transformedData.map(doc => ({ ...doc, required: true, isRequired: true })))
       } else {
         throw new Error('API response not ok')
       }
@@ -340,6 +343,7 @@ export default function InputUsulanPage() {
           id: "surat-pengantar",
           name: "Surat Pengantar Usulan",
           required: true,
+          isRequired: true,
           hasSimASN: false,
           description: "Surat pengantar dari Unit Kerja untuk usulan kenaikan pangkat",
         },
@@ -347,6 +351,7 @@ export default function InputUsulanPage() {
           id: "surat-bebas-hukuman",
           name: "Surat Pernyataan Bebas Hukuman Disiplin",
           required: true,
+          isRequired: true,
           hasSimASN: false,
           description: "Surat pernyataan bahwa pegawai bebas dari hukuman disiplin",
         },
@@ -354,6 +359,7 @@ export default function InputUsulanPage() {
           id: "surat-kebenaran-dokumen",
           name: "Surat Pernyataan Kebenaran Dokumen",
           required: true,
+          isRequired: true,
           hasSimASN: false,
           description: "Surat pernyataan kebenaran semua dokumen yang diupload",
         },
@@ -361,6 +367,7 @@ export default function InputUsulanPage() {
           id: "sk-kenaikan-terakhir",
           name: "SK Kenaikan Pangkat Terakhir",
           required: true,
+          isRequired: true,
           hasSimASN: true,
           description: "SK kenaikan pangkat yang terakhir diterima",
         },
@@ -368,6 +375,7 @@ export default function InputUsulanPage() {
           id: "penilaian-kinerja-1",
           name: "Penilaian Kinerja Pegawai 1 (satu) tahun terakhir",
           required: true,
+          isRequired: true,
           hasSimASN: true,
           description: "Penilaian kinerja pegawai untuk 1 tahun terakhir",
         },
@@ -375,6 +383,7 @@ export default function InputUsulanPage() {
           id: "penilaian-kinerja-2",
           name: "Penilaian Kinerja Pegawai 2 (dua) tahun terakhir",
           required: true,
+          isRequired: true,
           hasSimASN: true,
           description: "Penilaian kinerja pegawai untuk 2 tahun terakhir",
         },
@@ -382,6 +391,7 @@ export default function InputUsulanPage() {
           id: "sk-pns",
           name: "SK PNS",
           required: true,
+          isRequired: true,
           hasSimASN: true,
           description: "Bagi yang baru pertama kali diusulkan kenaikan pangkat",
         },
@@ -389,11 +399,13 @@ export default function InputUsulanPage() {
           id: "sk-cpns",
           name: "SK CPNS",
           required: true,
+          isRequired: true,
           hasSimASN: true,
           description: "Bagi yang baru pertama kali diusulkan kenaikan pangkat",
         },
       ]
-      setRequiredDocuments(mockDocs)
+      // Paksa semua dokumen mock menjadi wajib
+      setRequiredDocuments(mockDocs.map(doc => ({ ...doc, required: true, isRequired: true })))
     }
   }
 
@@ -487,44 +499,72 @@ export default function InputUsulanPage() {
   }
 
   const handleFileUpload = async (docId: string, file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      // 5MB limit
+    // Reset input file agar bisa upload file yang sama dua kali
+    const input = fileInputRefs.current[docId];
+    if (input) input.value = '';
+    // Check file size - 5MB max
+    const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSizeInBytes) {
       toast({
-        title: "Ukuran file melebihi batas",
-        description: "Ukuran file maksimal adalah 5MB.",
+        title: "Ukuran file terlalu besar",
+        description: `Ukuran file maksimal adalah 5MB. File Anda: ${(file.size / (1024 * 1024)).toFixed(2)}MB`,
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
+
+    // Check file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Format file tidak didukung",
+        description: "Hanya file PDF, JPG, dan PNG yang diperbolehkan",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Show loading toast
+    toast({ 
+      title: "Memproses dokumen...", 
+      description: `Sedang mengupload ${file.name}` 
+    });
 
     if (!editProposalId && !isEditMode) {
       // Local storage only if not in edit mode
       setUploadedFiles((prev) => ({
         ...prev,
-        [docId]: { file, name: file.name, size: file.size, uploadDate: new Date(), status: "uploaded" },
-      }))
-      toast({ title: "File berhasil diupload! 📁", description: `${file.name} telah diupload` })
-      return
+        [docId]: { 
+          file, 
+          name: file.name, 
+          size: file.size, 
+          uploadDate: new Date(), 
+          status: "uploaded" 
+        },
+      }));
+      
+      toast({ 
+        title: "Dokumen berhasil disiapkan! 📁", 
+        description: `${file.name} siap untuk diajukan` 
+      });
+      // Reset input file setelah upload lokal
+      if (input) input.value = '';
+      return;
     }
 
     // If in edit mode, upload to server directly
     try {
-      toast({ 
-        title: "Mengupload dokumen...", 
-        description: "Harap tunggu sebentar" 
-      })
-
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('documentRequirementId', docId)
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('documentRequirementId', docId);
 
       const response = await fetch(`/api/pegawai/proposals/${editProposalId}/documents`, {
         method: 'POST',
         body: formData
-      })
+      });
 
       if (response.ok) {
-        const result = await response.json()
+        const result = await response.json();
         setUploadedFiles((prev) => ({
           ...prev,
           [docId]: { 
@@ -535,22 +575,32 @@ export default function InputUsulanPage() {
             status: "MENUNGGU_VERIFIKASI",
             fileUrl: result.fileUrl
           },
-        }))
+        }));
+        
         toast({ 
           title: "Dokumen berhasil diupload! ✅", 
           description: `${file.name} telah diunggah dan menunggu verifikasi` 
-        })
+        });
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Gagal mengupload dokumen')
+        // Try to get error message from response
+        let errorMessage = 'Gagal mengupload dokumen';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          console.error('Error parsing error response:', e);
+        }
+        // Reset input file setelah error
+        if (input) input.value = '';
+        throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Error uploading document:', error)
+      console.error('Error uploading document:', error);
       toast({
         title: "Gagal mengupload dokumen",
         description: error instanceof Error ? error.message : "Terjadi kesalahan saat mengupload dokumen",
         variant: "destructive",
-      })
+      });
     }
   }
 
@@ -620,6 +670,8 @@ export default function InputUsulanPage() {
       })
     } finally {
       setLoadingSimasn(prev => ({ ...prev, [docId]: false }))
+    // Reset input file jika terjadi error
+    if (input) input.value = '';
     }
   }
   
@@ -665,6 +717,8 @@ export default function InputUsulanPage() {
   }
 
   const handleSubmitProposal = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     console.log("Form data at submission:", formData);
     console.log("Uploaded files:", uploadedFiles);
     
@@ -912,6 +966,8 @@ export default function InputUsulanPage() {
         description: error instanceof Error ? error.message : "Terjadi kesalahan saat mengajukan dokumen. Silakan coba lagi.",
         variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -1225,11 +1281,7 @@ export default function InputUsulanPage() {
                                 </div>
                               </td>
                               <td className="p-3">
-                                {doc.isRequired ? (
-                                  <Badge variant="destructive">Wajib</Badge>
-                                ) : (
-                                  <Badge variant="outline">Opsional</Badge>
-                                )}
+                                <Badge variant="destructive">Wajib</Badge>
                               </td>
                               <td className="p-3">
                                 {uploadedFile ? (
@@ -1248,6 +1300,20 @@ export default function InputUsulanPage() {
                               </td>
                               <td className="p-3">
                                 <div className="flex items-center justify-center gap-2">
+                                  {/* Drag & Drop Area */}
+                                  <div
+                                    onDrop={e => {
+                                      e.preventDefault();
+                                      const file = e.dataTransfer.files?.[0];
+                                      if (file) handleFileUpload(doc.id, file);
+                                    }}
+                                    onDragOver={e => e.preventDefault()}
+                                    className="border border-dashed border-gray-300 rounded px-2 py-2 mr-2 cursor-pointer hover:bg-gray-50 text-xs text-gray-500"
+                                    style={{ minWidth: 90, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    title="Drag & drop file di sini"
+                                  >
+                                    Drag file di sini
+                                  </div>
                                   <input
                                     type="file"
                                     id={`file-${doc.id}`}
@@ -1258,11 +1324,19 @@ export default function InputUsulanPage() {
                                       const file = e.target.files?.[0]
                                       if (file) handleFileUpload(doc.id, file)
                                     }}
+                                    ref={(input) => {
+                                      fileInputRefs.current[doc.id] = input;
+                                    }}
                                   />
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => document.getElementById(`file-${doc.id}`)?.click()}
+                                    onClick={() => {
+                                      const input = fileInputRefs.current[doc.id];
+                                      if (input) {
+                                        input.click();
+                                      }
+                                    }}
                                     disabled={isLoading}
                                   >
                                     <Upload className="h-3 w-3" />
@@ -1380,10 +1454,28 @@ export default function InputUsulanPage() {
                         </AlertDialog>
                       )}
                       
-                      <Button onClick={handleSubmitProposal} className="bg-gradient-to-r from-sky-500 to-teal-500">
-                        <FileText className="h-4 w-4 mr-2" />
-                        {isEditMode ? "Lengkapi & Ajukan Usulan" : "Ajukan Dokumen"}
-                      </Button>
+                      <div className="relative">
+                        <Button onClick={handleSubmitProposal} className="bg-gradient-to-r from-sky-500 to-teal-500" disabled={isSubmitting}>
+                          {isSubmitting ? (
+                            <span className="mr-2">
+                              <svg className="animate-spin h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                              </svg>
+                            </span>
+                          ) : (
+                            <FileText className="h-4 w-4 mr-2" />
+                          )}
+                          {isEditMode ? "Lengkapi & Ajukan Usulan" : "Ajukan Dokumen"}
+                        </Button>
+                        {isSubmitting && (
+                          <div className="absolute left-0 right-0 -bottom-7 flex justify-center">
+                            <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-2 bg-gradient-to-r from-sky-500 to-teal-500 animate-pulse w-full"></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

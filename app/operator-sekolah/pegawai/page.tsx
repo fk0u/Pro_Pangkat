@@ -263,7 +263,11 @@ export default function PegawaiPage() {
           jabatan: item.jabatan || '',
           golongan: item.golongan || '',
           statusKepegawaian: item.jenisJabatan || 'PNS',
-          unitKerja: item.unitKerja || ''
+          unitKerja: typeof item.unitKerja === 'string' 
+            ? item.unitKerja 
+            : typeof item.unitKerja === 'object' && item.unitKerja !== null
+              ? (item.unitKerja.nama || '') 
+              : ''
         }))
         
         setPegawaiList(mappedData)

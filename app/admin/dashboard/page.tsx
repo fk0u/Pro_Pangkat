@@ -416,11 +416,10 @@ export default function AdminDashboardPage() {
               <CardDescription>Aksi cepat untuk administrasi sistem</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {[
                   { title: "Kelola Pengguna", icon: Users, href: "/admin/users" },
                   { title: "Timeline KAPE", icon: Calendar, href: "/admin/timeline" },
-                  { title: "Inbox Usulan", icon: FileText, href: "/admin/inbox" },
                   { title: "Laporan", icon: BarChart3, href: "/admin/reports" },
                   { title: "Notifikasi", icon: Bell, href: "/admin/notifications" },
                   { title: "Pengaturan", icon: Settings, href: "/admin/settings" },

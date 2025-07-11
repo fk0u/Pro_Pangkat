@@ -18,7 +18,7 @@ interface TimelineData {
   isActive: boolean;
   priority: number;
   wilayahId: string | null;
-  wilayahRelasi?: {
+  wilayah?: {
     nama: string;
     namaLengkap: string;
   } | null;
@@ -42,15 +42,49 @@ export default function TimelineView({ userType, showControls = true }: Timeline
         setLoading(true)
       }
       
-      // Use the shared endpoint for all user types
-      const response = await fetch("/api/shared/timeline")
+      // Try the specific endpoint for the user type first
+      let endpoint = `/api/${userType}/timeline`
+      
+      // For operator-sekolah, we have a specific endpoint
+      if (userType === "operator-sekolah") {
+        endpoint = "/api/operator-sekolah/timeline"
+      }
+      
+      let response = await fetch(endpoint)
+      
+      // If that fails, fall back to the shared endpoint
+      if (!response.ok) {
+        console.log(`Specific endpoint ${endpoint} failed, trying shared endpoint`)
+        response = await fetch("/api/shared/timeline")
+      }
       
       if (!response.ok) {
-        throw new Error("Failed to fetch timelines")
+        console.error("Timeline API returned error:", response.status, response.statusText)
+        const errorText = await response.text();
+        console.error("Error response body:", errorText);
+        throw new Error(`Failed to fetch timelines: ${response.status} ${response.statusText}`)
       }
       
       const data = await response.json()
-      setTimelines(data.data)
+      console.log("Timeline API response:", data)
+      
+      // Handle different response formats
+      if (data && Array.isArray(data.data)) {
+        // Standard API format from createSuccessResponse
+        setTimelines(data.data)
+      } else if (data && Array.isArray(data.timelines)) {
+        // Format used by some specific endpoints
+        setTimelines(data.timelines)
+      } else if (data && Array.isArray(data)) {
+        // Direct array format
+        setTimelines(data)
+      } else if (data && data.success === true && data.data === null) {
+        // Success but no data
+        setTimelines([])
+      } else {
+        console.error("Unexpected API response format:", data)
+        throw new Error("Invalid data format from API")
+      }
     } catch (error) {
       console.error("Error fetching timelines:", error)
       toast({
@@ -209,9 +243,9 @@ export default function TimelineView({ userType, showControls = true }: Timeline
                 </div>
               </div>
               
-              {item.wilayahRelasi && (
+              {(item.wilayah || item.wilayahRelasi) && (
                 <div className="text-sm text-gray-600">
-                  <span className="font-medium">Wilayah:</span> {item.wilayahRelasi.namaLengkap}
+                  <span className="font-medium">Wilayah:</span> {item.wilayah?.namaLengkap || item.wilayahRelasi?.namaLengkap}
                 </div>
               )}
             </div>

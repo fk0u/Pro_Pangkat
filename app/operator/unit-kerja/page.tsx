@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from "react"
 import { Search, Users, MapPin, School, Download, FileText, Filter, Eye, 
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, PlusCircle,
-  FileUp, Loader2, CheckCircle, AlertTriangle, Building, RefreshCw } from "lucide-react"
+  FileUp, Loader2, CheckCircle, AlertTriangle, Building, RefreshCw, UserPlus, 
+  CheckCircle2, XCircle, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { motion } from "framer-motion"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -74,6 +76,48 @@ interface OperatorInfo {
   wilayahRelasi: WilayahMaster | null
 }
 
+// Operator Account Interfaces
+interface OperatorAccount {
+  id: string
+  nip: string
+  name: string
+  email: string | null
+  phone: string | null
+  mustChangePassword: boolean
+  createdAt: string
+}
+
+interface UnitKerjaOperatorStatus {
+  unitKerjaId: string
+  unitKerjaNama: string
+  unitKerjaNpsn: string | null
+  hasOperator: boolean
+  hasValidData: boolean
+  operator: OperatorAccount | null
+}
+
+interface CreateOperatorResult {
+  created: Array<{
+    unitKerjaId: string
+    unitKerjaNama: string
+    operatorId: string
+    nip: string
+    name: string
+    defaultPassword: string
+  }>
+  skipped: Array<{
+    unitKerjaId: string
+    unitKerjaNama: string
+    existingNip: string
+    reason: string
+  }>
+  errors: Array<{
+    unitKerjaId: string
+    unitKerjaNama: string
+    error: string
+  }>
+}
+
 export default function OperatorUnitKerjaPage() {
   const [filteredData, setFilteredData] = useState<UnitKerja[]>([])
   const [search, setSearch] = useState("")
@@ -107,6 +151,20 @@ export default function OperatorUnitKerjaPage() {
   const [showDetailDialog, setShowDetailDialog] = useState(false)
   const [selectedUnitKerja, setSelectedUnitKerja] = useState<UnitKerja | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  
+  // Operator Accounts Dialog states
+  const [showOperatorAccountsDialog, setShowOperatorAccountsDialog] = useState(false)
+  const [operatorAccountsStatus, setOperatorAccountsStatus] = useState<UnitKerjaOperatorStatus[]>([])
+  const [operatorAccountsSummary, setOperatorAccountsSummary] = useState({
+    totalUnitKerja: 0,
+    withOperator: 0,
+    withoutOperator: 0,
+    invalidData: 0
+  })
+  const [selectedUnitKerjaIds, setSelectedUnitKerjaIds] = useState<string[]>([])
+  const [isCreatingOperators, setIsCreatingOperators] = useState(false)
+  const [createOperatorResult, setCreateOperatorResult] = useState<CreateOperatorResult | null>(null)
+  const [showCreateResultDialog, setShowCreateResultDialog] = useState(false)
   
   // Form data
   const [formData, setFormData] = useState({
@@ -541,6 +599,122 @@ export default function OperatorUnitKerjaPage() {
       })
     }
   }
+
+  // Fetch operator accounts status
+  const fetchOperatorAccountsStatus = async () => {
+    try {
+      const response = await fetch('/api/operator/unit-kerja/create-operator-accounts', {
+        cache: 'no-store'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch operator accounts status')
+      }
+      
+      setOperatorAccountsStatus(data.data)
+      setOperatorAccountsSummary(data.summary)
+      
+    } catch (error) {
+      console.error('Error fetching operator accounts status:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Gagal mengambil status akun operator",
+        variant: "destructive",
+        duration: 5000,
+      })
+    }
+  }
+
+  // Handle open operator accounts dialog
+  const handleOpenOperatorAccountsDialog = async () => {
+    setShowOperatorAccountsDialog(true)
+    await fetchOperatorAccountsStatus()
+  }
+
+  // Handle create operator accounts
+  const handleCreateOperatorAccounts = async () => {
+    if (selectedUnitKerjaIds.length === 0) {
+      toast({
+        title: "Peringatan",
+        description: "Pilih minimal satu unit kerja untuk dibuatkan akun operator",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
+
+    setIsCreatingOperators(true)
+    
+    try {
+      const response = await fetch('/api/operator/unit-kerja/create-operator-accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          unitKerjaIds: selectedUnitKerjaIds
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to create operator accounts')
+      }
+      
+      setCreateOperatorResult(data.data)
+      setShowCreateResultDialog(true)
+      setShowOperatorAccountsDialog(false)
+      setSelectedUnitKerjaIds([])
+      
+      // Refresh operator accounts status
+      await fetchOperatorAccountsStatus()
+      
+      toast({
+        title: "Berhasil",
+        description: data.message,
+        duration: 5000,
+      })
+      
+    } catch (error) {
+      console.error('Error creating operator accounts:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Gagal membuat akun operator",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setIsCreatingOperators(false)
+    }
+  }
+
+  // Toggle unit kerja selection
+  const toggleUnitKerjaSelection = (unitKerjaId: string) => {
+    setSelectedUnitKerjaIds(prev => 
+      prev.includes(unitKerjaId)
+        ? prev.filter(id => id !== unitKerjaId)
+        : [...prev, unitKerjaId]
+    )
+  }
+
+  // Select all unit kerja without operators
+  const selectAllWithoutOperators = () => {
+    const unitsWithoutOperators = operatorAccountsStatus
+      .filter(unit => !unit.hasOperator && unit.hasValidData)
+      .map(unit => unit.unitKerjaId)
+    setSelectedUnitKerjaIds(unitsWithoutOperators)
+  }
   
   // Add debounce for search
   useEffect(() => {
@@ -846,6 +1020,14 @@ export default function OperatorUnitKerjaPage() {
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Export
+                </Button>
+                <Button
+                  onClick={handleOpenOperatorAccountsDialog}
+                  variant="outline"
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Buat Akun Operator Sekolah
                 </Button>
               </div>
             </div>
@@ -1405,6 +1587,287 @@ export default function OperatorUnitKerjaPage() {
           unitKerja={selectedUnitKerja}
           onRefresh={fetchUnitKerjaData}
         />
+
+        {/* Operator Accounts Dialog */}
+        <Dialog open={showOperatorAccountsDialog} onOpenChange={setShowOperatorAccountsDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Buat Akun Operator Sekolah
+              </DialogTitle>
+              <DialogDescription>
+                Kelola akun operator sekolah untuk unit kerja di wilayah Anda. 
+                Akun akan dibuat dengan NIP random dan password default sama dengan NIP.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-auto">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Total Unit Kerja</p>
+                        <p className="text-xl font-bold">{operatorAccountsSummary.totalUnitKerja}</p>
+                      </div>
+                      <School className="h-6 w-6 text-blue-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Sudah Ada Operator</p>
+                        <p className="text-xl font-bold text-green-600">{operatorAccountsSummary.withOperator}</p>
+                      </div>
+                      <CheckCircle2 className="h-6 w-6 text-green-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Belum Ada Operator</p>
+                        <p className="text-xl font-bold text-orange-600">{operatorAccountsSummary.withoutOperator}</p>
+                      </div>
+                      <Clock className="h-6 w-6 text-orange-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Data Tidak Valid</p>
+                        <p className="text-xl font-bold text-red-600">{operatorAccountsSummary.invalidData}</p>
+                      </div>
+                      <XCircle className="h-6 w-6 text-red-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  onClick={selectAllWithoutOperators}
+                  variant="outline"
+                  size="sm"
+                >
+                  Pilih Semua yang Belum Ada Operator
+                </Button>
+                <Button
+                  onClick={() => setSelectedUnitKerjaIds([])}
+                  variant="outline"
+                  size="sm"
+                >
+                  Hapus Pilihan
+                </Button>
+                <div className="flex-1" />
+                <span className="text-sm text-gray-600 py-2">
+                  {selectedUnitKerjaIds.length} unit kerja dipilih
+                </span>
+              </div>
+
+              {/* Unit Kerja List */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Daftar Unit Kerja</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="max-h-60 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={selectedUnitKerjaIds.length === operatorAccountsStatus.filter(u => !u.hasOperator && u.hasValidData).length && selectedUnitKerjaIds.length > 0}
+                              onCheckedChange={selectAllWithoutOperators}
+                            />
+                          </TableHead>
+                          <TableHead>Nama Unit Kerja</TableHead>
+                          <TableHead>NPSN</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Operator</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {operatorAccountsStatus.map((unit) => (
+                          <TableRow key={unit.unitKerjaId}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedUnitKerjaIds.includes(unit.unitKerjaId)}
+                                onCheckedChange={() => toggleUnitKerjaSelection(unit.unitKerjaId)}
+                                disabled={unit.hasOperator || !unit.hasValidData}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{unit.unitKerjaNama}</TableCell>
+                            <TableCell>{unit.unitKerjaNpsn || '-'}</TableCell>
+                            <TableCell>
+                              {!unit.hasValidData ? (
+                                <Badge variant="destructive">Data Tidak Valid</Badge>
+                              ) : unit.hasOperator ? (
+                                <Badge variant="default">Sudah Ada Operator</Badge>
+                              ) : (
+                                <Badge variant="secondary">Belum Ada Operator</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {unit.operator ? (
+                                <div className="text-sm">
+                                  <div className="font-medium">{unit.operator.name}</div>
+                                  <div className="text-gray-500">NIP: {unit.operator.nip}</div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowOperatorAccountsDialog(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleCreateOperatorAccounts}
+                disabled={selectedUnitKerjaIds.length === 0 || isCreatingOperators}
+              >
+                {isCreatingOperators ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Membuat Akun...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Buat Akun Operator ({selectedUnitKerjaIds.length})
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Operator Result Dialog */}
+        <Dialog open={showCreateResultDialog} onOpenChange={setShowCreateResultDialog}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                Hasil Pembuatan Akun Operator
+              </DialogTitle>
+              <DialogDescription>
+                Berikut adalah hasil pembuatan akun operator sekolah
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-auto space-y-4">
+              {createOperatorResult && (
+                <>
+                  {/* Success Results */}
+                  {createOperatorResult.created.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg text-green-600 flex items-center gap-2">
+                          <CheckCircle2 className="h-5 w-5" />
+                          Berhasil Dibuat ({createOperatorResult.created.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {createOperatorResult.created.map((result, index) => (
+                            <div key={index} className="bg-green-50 p-3 rounded-lg border border-green-200">
+                              <div className="font-medium">{result.unitKerjaNama}</div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                <strong>Nama:</strong> {result.name}<br/>
+                                <strong>NIP:</strong> {result.nip}<br/>
+                                <strong>Password Default:</strong> <code className="bg-gray-100 px-1 rounded">{result.defaultPassword}</code>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Skipped Results */}
+                  {createOperatorResult.skipped.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg text-orange-600 flex items-center gap-2">
+                          <Clock className="h-5 w-5" />
+                          Dilewati ({createOperatorResult.skipped.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {createOperatorResult.skipped.map((result, index) => (
+                            <div key={index} className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                              <div className="font-medium">{result.unitKerjaNama}</div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                <strong>Alasan:</strong> {result.reason}<br/>
+                                <strong>NIP yang Ada:</strong> {result.existingNip}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Error Results */}
+                  {createOperatorResult.errors.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg text-red-600 flex items-center gap-2">
+                          <XCircle className="h-5 w-5" />
+                          Error ({createOperatorResult.errors.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {createOperatorResult.errors.map((result, index) => (
+                            <div key={index} className="bg-red-50 p-3 rounded-lg border border-red-200">
+                              <div className="font-medium">{result.unitKerjaNama}</div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                <strong>Error:</strong> {result.error}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setShowCreateResultDialog(false)
+                  setCreateOperatorResult(null)
+                }}
+              >
+                Tutup
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   )

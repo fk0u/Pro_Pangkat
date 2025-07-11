@@ -78,7 +78,18 @@ export async function GET(
 
     const formattedUsulan = {
       id: usulan.id,
-      pegawai: usulan.pegawai,
+      pegawai: {
+        id: usulan.pegawai.id,
+        name: usulan.pegawai.name,
+        nip: usulan.pegawai.nip,
+        jabatan: usulan.pegawai.jabatan,
+        golongan: usulan.pegawai.golongan,
+        unitKerja: typeof usulan.pegawai.unitKerja === 'object' ? {
+          id: usulan.pegawai.unitKerja.id,
+          nama: usulan.pegawai.unitKerja.nama,
+          jenjang: usulan.pegawai.unitKerja.jenjang
+        } : usulan.pegawai.unitKerja
+      },
       golonganAsal: currentGolongan,
       golonganTujuan: golonganTujuan,
       periode: usulan.periode,
@@ -86,7 +97,7 @@ export async function GET(
       tanggalAjukan: usulan.createdAt.toISOString().split('T')[0],
       tanggalUpdate: usulan.updatedAt.toISOString().split('T')[0],
       keterangan: usulan.notes || '',
-      documents: usulan.documents.map(doc => ({
+      documents: usulan.documents.map((doc: any) => ({
         id: doc.id,
         name: doc.documentRequirement.name,
         code: doc.documentRequirement.code,

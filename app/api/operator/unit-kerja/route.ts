@@ -1,73 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-
-// Mapping enum wilayah ke wilayahId untuk backward compatibility
-const enumToWilayahId: Record<string, string> = {
-  'BALIKPAPAN_PPU': 'wilayah_balikpapan_ppu',
-  'KUTIM_BONTANG': 'wilayah_kutim_bontang',
-  'KUKAR': 'wilayah_kukar',
-  'KUBAR_MAHULU': 'wilayah_kubar_mahulu',
-  'PASER': 'wilayah_paser',
-  'BERAU': 'wilayah_berau',
-  'SAMARINDA': 'wilayah_samarinda'
-}
 
 export async function GET(request: NextRequest) {
   try {
-    // Get the current logged-in user
-    const { getSession } = await import('@/lib/auth')
     const session = await getSession()
     
     if (!session.isLoggedIn || session.user?.role !== 'OPERATOR') {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Get the logged-in operator's data
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { 
-        wilayah: true,
-        wilayahId: true,
-        wilayahRelasi: {
-          select: {
-            id: true,
-            kode: true,
-            nama: true,
-            namaLengkap: true
-          }
-        }
-      }
-    })
-
-    // Get wilayahId dari relasi atau dari enum untuk backward compatibility
-    const operatorWilayahId = user?.wilayahId || enumToWilayahId[user?.wilayah || '']
-    const operatorWilayahEnum = user?.wilayah
-
-    if (!operatorWilayahId && !operatorWilayahEnum) {
-      return NextResponse.json({ success: false, message: 'Wilayah operator not found' }, { status: 400 })
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
     const jenjang = searchParams.get('jenjang') || 'all'
-    const kecamatan = searchParams.get('kecamatan') || 'all'
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+
+    // Get user's wilayah for filtering
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { wilayah: true }
+    })
+
+    if (!user?.wilayah) {
+      return NextResponse.json({ message: 'Wilayah operator not found' }, { status: 400 })
+    }
 
     // Build filter conditions for UnitKerja
     const whereClause: Record<string, unknown> = {
-      OR: [
-        { wilayahId: operatorWilayahId },
-        { wilayah: operatorWilayahEnum }
-      ].filter(Boolean)
+      wilayah: user.wilayah // Filter by operator's wilayah
     }
 
     // Add search filter
     if (search) {
-      whereClause.OR = [
-        { nama: { contains: search, mode: 'insensitive' } },
-        { npsn: { contains: search } }
-      ]
+      whereClause.nama = {
+        contains: search,
+        mode: 'insensitive'
+      }
     }
 
     // Add jenjang filter
@@ -75,39 +42,19 @@ export async function GET(request: NextRequest) {
       whereClause.jenjang = jenjang
     }
 
-    // Add kecamatan filter
-    if (kecamatan !== 'all') {
-      whereClause.kecamatan = kecamatan
-    }
-
     // Get unit kerja data with relations
-    const [unitKerjaList, totalCount] = await Promise.all([
-      prisma.unitKerja.findMany({
-        where: whereClause,
-        include: {
-          pegawai: {
-            where: { role: 'PEGAWAI' },
-            select: { id: true }
-          },
-          wilayahRelasi: {
-            select: {
-              id: true,
-              kode: true,
-              nama: true,
-              namaLengkap: true
-            }
-          }
-        },
-        orderBy: {
-          nama: 'asc'
-        },
-        skip: (page - 1) * limit,
-        take: limit
-      }),
-      prisma.unitKerja.count({
-        where: whereClause
-      })
-    ])
+    const unitKerjaList = await prisma.unitKerja.findMany({
+      where: whereClause,
+      include: {
+        pegawai: {
+          where: { role: 'PEGAWAI' },
+          select: { id: true }
+        }
+      },
+      orderBy: {
+        nama: 'asc'
+      }
+    })
 
     // Get additional statistics for each unit kerja
     const enrichedUnitKerja = await Promise.all(
@@ -141,10 +88,8 @@ export async function GET(request: NextRequest) {
           alamat: unit.alamat || '-',
           kecamatan: unit.kecamatan || '-',
           wilayah: unit.wilayah,
-          wilayahRelasi: unit.wilayahRelasi,
-          wilayahNama: unit.wilayahRelasi?.nama || formatWilayahForDisplay(unit.wilayah),
           status: unit.status,
-          jumlahPegawai: unit.pegawai.length,
+          totalPegawai: unit.pegawai.length,
           totalUsulan,
           usulanAktif
         }
@@ -156,48 +101,18 @@ export async function GET(request: NextRequest) {
       .filter(unit => unit !== null)
       .sort((a, b) => a!.nama.localeCompare(b!.nama))
 
-    const totalUnitKerja = await prisma.unitKerja.count({
-      where: whereClause
-    })
-    
-    const totalPegawai = await prisma.user.count({
-      where: {
-        role: 'PEGAWAI',
-        ...(operatorWilayahId ? { wilayahId: operatorWilayahId } : {}),
-        ...(operatorWilayahEnum ? { wilayah: operatorWilayahEnum } : {})
-      }
-    })
-    
-    const totalUsulan = await prisma.promotionProposal.count({
-      where: {
-        pegawai: {
-          ...(operatorWilayahId ? { wilayahId: operatorWilayahId } : {}),
-          ...(operatorWilayahEnum ? { wilayah: operatorWilayahEnum } : {})
-        }
-      }
-    })
-    
-    const unitAktif = await prisma.unitKerja.count({
-      where: {
-        status: 'Aktif',
-        ...(operatorWilayahId ? { wilayahId: operatorWilayahId } : {}),
-        ...(operatorWilayahEnum ? { wilayah: operatorWilayahEnum } : {})
-      }
-    })
+    // Get summary statistics
+    const totalUnitKerja = validUnitKerja.length
+    const totalPegawai = validUnitKerja.reduce((sum, unit) => sum + unit!.totalPegawai, 0)
+    const totalUsulan = validUnitKerja.reduce((sum, unit) => sum + unit!.totalUsulan, 0)
+    const unitAktif = validUnitKerja.filter(unit => unit!.status === 'Aktif').length
 
     // Get filter options from the results
     const jenjangOptions = [...new Set(validUnitKerja.map(unit => unit!.jenjang))]
-    const kecamatanOptions = [...new Set(validUnitKerja.map(unit => unit!.kecamatan).filter(Boolean))]
 
     return NextResponse.json({
       success: true,
       data: validUnitKerja,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalCount / limit),
-        totalCount,
-        limit
-      },
       summary: {
         totalUnitKerja,
         totalPegawai,
@@ -205,39 +120,224 @@ export async function GET(request: NextRequest) {
         unitAktif
       },
       filterOptions: {
-        jenjang: jenjangOptions.filter(Boolean),
-        kecamatan: kecamatanOptions
-      },
-      userInfo: {
-        id: session.user.id,
-        name: session.user.name,
-        role: session.user.role,
-        wilayah: user?.wilayah,
-        wilayahId: user?.wilayahId,
-        wilayahRelasi: user?.wilayahRelasi
+        jenjang: jenjangOptions.filter(Boolean)
       }
     })
 
   } catch (error) {
     console.error('Error fetching unit kerja data:', error)
     return NextResponse.json({ 
-      success: false,
       message: 'Internal server error' 
     }, { status: 500 })
   }
 }
 
-// Helper function for backward compatibility
-function formatWilayahForDisplay(wilayahCode: string | null | undefined): string {
-  if (!wilayahCode) return 'Belum Ditentukan'
-  const wilayahMap: Record<string, string> = {
-    'BALIKPAPAN_PPU': 'Balikpapan & PPU',
-    'KUTIM_BONTANG': 'Kutai Timur & Bontang',
-    'KUKAR': 'Kutai Kartanegara',
-    'KUBAR_MAHULU': 'Kutai Barat & Mahulu',
-    'PASER': 'Paser',
-    'BERAU': 'Berau',
-    'SAMARINDA': 'Samarinda',
+// Add the POST method to handle adding new unit kerja
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession()
+    
+    if (!session.isLoggedIn || session.user?.role !== 'OPERATOR') {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user's wilayah for filtering
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { wilayah: true }
+    })
+
+    if (!user?.wilayah) {
+      return NextResponse.json({ success: false, message: 'Wilayah operator not found' }, { status: 400 })
+    }
+
+    // Check content type and handle accordingly
+    const contentType = request.headers.get('content-type')
+    
+    if (contentType?.includes('multipart/form-data')) {
+      // Handle Excel import
+      const formData = await request.formData()
+      const file = formData.get('file') as File
+      
+      if (!file) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'No file uploaded' 
+        }, { status: 400 })
+      }
+      
+      // Convert file to array buffer for XLSX parsing
+      const arrayBuffer = await file.arrayBuffer()
+      const data = new Uint8Array(arrayBuffer)
+      
+      // Use XLSX (must be imported at runtime to avoid SSR issues)
+      const XLSX = await import('xlsx')
+      const workbook = XLSX.read(data, { type: 'array' })
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet)
+      
+      const results = {
+        total: jsonData.length,
+        success: 0,
+        failed: 0,
+        errors: [] as string[],
+        created: [] as string[]
+      }
+      
+      // Process each row in the Excel file
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i] as Record<string, unknown>
+        const rowNumber = i + 2 // Excel starts from row 2 after header
+        
+        try {
+          // Validate required fields
+          if (!row['NAMA'] || !row['JENJANG']) {
+            results.errors.push(`Baris ${rowNumber}: NAMA dan JENJANG wajib diisi`)
+            results.failed++
+            continue
+          }
+          
+          const nama = String(row['NAMA']).trim()
+          const jenjang = String(row['JENJANG']).trim()
+          
+          // Check if unit kerja already exists
+          const existingUnitKerja = await prisma.unitKerja.findFirst({
+            where: {
+              nama: {
+                equals: nama,
+                mode: 'insensitive'
+              },
+              wilayah: user.wilayah
+            }
+          })
+          
+          if (existingUnitKerja) {
+            results.errors.push(`Baris ${rowNumber}: Unit kerja "${nama}" sudah ada`)
+            results.failed++
+            continue
+          }
+          
+          // Prepare data for new unit kerja
+          const unitKerjaData = {
+            nama: nama,
+            jenjang: jenjang,
+            npsn: row['NPSN'] ? String(row['NPSN']).trim() : null,
+            alamat: row['ALAMAT'] ? String(row['ALAMAT']).trim() : null,
+            kecamatan: row['KECAMATAN'] ? String(row['KECAMATAN']).trim() : null,
+            kabupaten: row['KABUPATEN'] ? String(row['KABUPATEN']).trim() : null,
+            provinsi: row['PROVINSI'] ? String(row['PROVINSI']).trim() : null,
+            kepalaSekolah: row['KEPALA_SEKOLAH'] ? String(row['KEPALA_SEKOLAH']).trim() : null,
+            email: row['EMAIL'] ? String(row['EMAIL']).trim() : null,
+            phone: row['TELEPON'] ? String(row['TELEPON']).trim() : null,
+            website: row['WEBSITE'] ? String(row['WEBSITE']).trim() : null,
+            status: 'Aktif',
+            wilayah: user.wilayah
+          }
+          }
+          
+          // Create new unit kerja
+          await prisma.unitKerja.create({ data: unitKerjaData })
+          
+          results.success++
+          results.created.push(nama)
+          
+        } catch (error) {
+          console.error(`Error processing row ${rowNumber}:`, error)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          results.errors.push(`Baris ${rowNumber}: ${errorMessage}`)
+          results.failed++
+        }
+      }
+      
+      return NextResponse.json({
+        success: true,
+        message: `Import selesai. ${results.success} unit kerja berhasil ditambahkan.`,
+        results
+      })
+      
+    } else {
+      // Handle single unit kerja creation
+      let data
+      
+      if (contentType?.includes('application/json')) {
+        data = await request.json()
+      } else {
+        // Handle FormData
+        const formData = await request.formData()
+        data = {
+          nama: formData.get('nama'),
+          jenjang: formData.get('jenjang'),
+          npsn: formData.get('npsn') || null,
+          alamat: formData.get('alamat') || null,
+          kecamatan: formData.get('kecamatan') || null,
+          kabupaten: formData.get('kabupaten') || null,
+          provinsi: formData.get('provinsi') || null,
+          kepalaSekolah: formData.get('kepalaSekolah') || null,
+          email: formData.get('email') || null,
+          phone: formData.get('phone') || null,
+          website: formData.get('website') || null,
+          status: formData.get('status') || 'Aktif'
+        }
+      }
+      
+      // Validate required fields
+      if (!data.nama || !data.jenjang) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'Nama dan jenjang wajib diisi' 
+        }, { status: 400 })
+      }
+      
+      // Check if unit kerja already exists
+      const existingUnitKerja = await prisma.unitKerja.findFirst({
+        where: {
+          nama: {
+            equals: data.nama,
+            mode: 'insensitive'
+          },
+          wilayah: user.wilayah
+        }
+      })
+      
+      if (existingUnitKerja) {
+        return NextResponse.json({ 
+          success: false, 
+          message: `Unit kerja "${data.nama}" sudah ada` 
+        }, { status: 400 })
+      }
+      
+      // Create new unit kerja
+      const newUnitKerja = await prisma.unitKerja.create({
+        data: {
+          nama: data.nama,
+          jenjang: data.jenjang,
+          npsn: data.npsn,
+          alamat: data.alamat,
+          kecamatan: data.kecamatan,
+          kabupaten: data.kabupaten,
+          provinsi: data.provinsi,
+          kepalaSekolah: data.kepalaSekolah,
+          email: data.email,
+          phone: data.phone,
+          website: data.website,
+          status: data.status,
+          wilayah: user.wilayah
+        }
+      })
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Unit kerja berhasil ditambahkan',
+        data: newUnitKerja
+      })
+    }
+    
+  } catch (error) {
+    console.error('Error creating unit kerja:', error)
+    return NextResponse.json({ 
+      success: false,
+      message: 'Internal server error'
+    }, { status: 500 })
   }
-  return wilayahMap[wilayahCode] || wilayahCode
 }

@@ -166,13 +166,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Get user to check if they have a unit kerja
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { unitKerja: true }
+    });
+
+    // Determine initial status based on unit kerja
+    // If user has unit kerja, proposal starts as DRAFT
+    // If no unit kerja, it goes directly to MENUNGGU_VERIFIKASI_DINAS
+    const initialStatus = user?.unitKerja ? "DRAFT" : "MENUNGGU_VERIFIKASI_DINAS";
+
     // Create the proposal
     const proposal = await prisma.promotionProposal.create({
       data: {
         periode: parsed.data.periode,
         notes: parsed.data.notes || `Usulan kenaikan pangkat untuk periode ${parsed.data.periode}`,
         pegawaiId: session.user.id,
-        status: "DRAFT",
+        status: initialStatus,
       },
       include: {
         pegawai: {
