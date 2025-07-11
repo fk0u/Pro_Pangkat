@@ -4,7 +4,7 @@ import { withAuth, createErrorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/lib/types";
 
-// Endpoint khusus untuk pegawai - implementasi mirip operator-sekolah
+// Endpoint khusus untuk pegawai
 export const GET = withAuth(async (req: NextRequest, user: User) => {
   try {
     if (user.role !== "PEGAWAI") {
@@ -13,49 +13,27 @@ export const GET = withAuth(async (req: NextRequest, user: User) => {
 
     console.log(`[PEGAWAI TIMELINE API] User: ${user.name}, JenisJabatan: ${user.jenisJabatan || 'none'}, Wilayah: ${user.wilayah || 'none'}`);
 
-    // Get user's info for filtering
-    const pegawaiData = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        wilayah: true,
-        jenisJabatan: true,
-        unitKerja: true
-      }
-    });
-
-    if (!pegawaiData) {
-      console.log("[PEGAWAI TIMELINE API] User not found");
-      return createErrorResponse("User not found", 404);
-    }
-
-    // Build where condition for timeline query
-    const whereConditions = [
-      { isActive: true }, // Only get active timelines
-    ];
-
-    // Add jabatan type conditions
+    // Build query conditions - lebih sederhana dan lebih toleran
+    const whereConditions = [];
+    
+    // 1. Ambil timeline aktif
+    whereConditions.push({ isActive: true });
+    
+    // 2. Ambil timeline untuk semua jabatan (all)
+    whereConditions.push({ jabatanType: "all" });
+    
+    // 3. Jika user memiliki jenisJabatan, tambahkan kondisi match jabatanType
     if (user.jenisJabatan) {
-      whereConditions.push(
-        { jabatanType: user.jenisJabatan.toLowerCase() },
-        { jabatanType: "all" }
-      );
-    } else {
-      whereConditions.push({ jabatanType: "all" });
+      whereConditions.push({ jabatanType: user.jenisJabatan.toLowerCase() });
     }
-
-    // Add wilayah conditions
+    
+    // 4. Jika user memiliki wilayah, tambahkan kondisi wilayah
     if (user.wilayah) {
-      whereConditions.push(
-        { wilayah: user.wilayah },
-        { wilayah: null } // Also include global timelines
-      );
-    } else {
-      whereConditions.push({ wilayah: null });
+      whereConditions.push({ wilayah: user.wilayah });
+      whereConditions.push({ wilayah: null }); // Juga tampilkan timeline tanpa wilayah (global)
     }
-
-    console.log("[PEGAWAI TIMELINE API] Query conditions:", JSON.stringify(whereConditions));
-
-    // Query timelines with OR condition
+    
+    // Query dengan OR untuk semua kondisi di atas - lebih toleran/fleksibel
     const timelines = await prisma.timeline.findMany({
       where: {
         OR: whereConditions
@@ -68,7 +46,7 @@ export const GET = withAuth(async (req: NextRequest, user: User) => {
     
     console.log(`[PEGAWAI TIMELINE API] Found ${timelines.length} timelines`);
     
-    // If no timelines found, get all active timelines as fallback
+    // Jika tidak ada timeline yang ditemukan, ambil semua timeline aktif
     if (timelines.length === 0) {
       console.log("[PEGAWAI TIMELINE API] No matching timelines, retrieving all active timelines");
       
@@ -84,63 +62,53 @@ export const GET = withAuth(async (req: NextRequest, user: User) => {
       
       console.log(`[PEGAWAI TIMELINE API] Found ${allActiveTimelines.length} active timelines`);
       
-      // Transform and enrich timeline data
-      const transformedTimelines = allActiveTimelines.map(timeline => ({
-        ...timeline,
+      // Transform dan return all active timelines
+      const transformedAllTimelines = allActiveTimelines.map(timeline => ({
+        id: timeline.id,
+        title: timeline.title,
+        description: timeline.description,
         startDate: timeline.startDate ? timeline.startDate.toISOString() : null,
         endDate: timeline.endDate ? timeline.endDate.toISOString() : null,
-        createdAt: timeline.createdAt.toISOString(),
-        updatedAt: timeline.updatedAt.toISOString(),
-        // Compute status
-        status: timeline.isActive ? 'active' : 
-                new Date(timeline.endDate) < new Date() ? 'expired' : 
-                new Date(timeline.startDate) > new Date() ? 'upcoming' : 'completed',
-        // Days remaining
-        daysRemaining: Math.ceil((timeline.endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-        // Add wilayah info
+        isActive: timeline.isActive,
+        priority: timeline.priority,
+        jabatanType: timeline.jabatanType,
+        wilayah: timeline.wilayah,
         wilayahInfo: timeline.wilayah ? {
           nama: timeline.wilayah,
           namaLengkap: formatWilayahName(timeline.wilayah)
         } : null
       }));
       
-      // Return with the expected format for timeline-view.tsx
+      // Return dengan format yang diharapkan oleh timeline-view.tsx
       return NextResponse.json({
         success: true,
-        data: transformedTimelines,
-        message: `Berhasil memuat ${transformedTimelines.length} timeline aktif`,
-        wilayah: user.wilayah,
-        unitKerja: pegawaiData.unitKerja
+        data: transformedAllTimelines,
+        message: `Berhasil memuat ${transformedAllTimelines.length} timeline aktif`
       });
     }
     
-    // Transform and enrich timeline data
+    // Transform data sebelum dikembalikan
     const transformedTimelines = timelines.map(timeline => ({
-      ...timeline,
+      id: timeline.id,
+      title: timeline.title,
+      description: timeline.description,
       startDate: timeline.startDate ? timeline.startDate.toISOString() : null,
       endDate: timeline.endDate ? timeline.endDate.toISOString() : null,
-      createdAt: timeline.createdAt.toISOString(),
-      updatedAt: timeline.updatedAt.toISOString(),
-      // Compute status
-      status: timeline.isActive ? 'active' : 
-              new Date(timeline.endDate) < new Date() ? 'expired' : 
-              new Date(timeline.startDate) > new Date() ? 'upcoming' : 'completed',
-      // Days remaining
-      daysRemaining: Math.ceil((timeline.endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-      // Add wilayah info
+      isActive: timeline.isActive,
+      priority: timeline.priority,
+      jabatanType: timeline.jabatanType,
+      wilayah: timeline.wilayah,
       wilayahInfo: timeline.wilayah ? {
         nama: timeline.wilayah,
         namaLengkap: formatWilayahName(timeline.wilayah)
       } : null
     }));
 
-    // Return with the expected format for timeline-view.tsx
+    // Return dengan format yang diharapkan oleh timeline-view.tsx
     return NextResponse.json({
       success: true,
       data: transformedTimelines,
-      message: `Berhasil memuat ${transformedTimelines.length} timeline`,
-      wilayah: user.wilayah,
-      unitKerja: pegawaiData.unitKerja
+      message: `Berhasil memuat ${transformedTimelines.length} timeline`
     });
 
   } catch (error: unknown) {
