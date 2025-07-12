@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
@@ -6,8 +7,7 @@ import { hashPassword } from '@/lib/password'
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession()
-    
-    if (!session.isLoggedIn || session.user?.role !== 'OPERATOR') {
+    if (!session?.user?.id || session.user.role !== 'OPERATOR') {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
@@ -24,73 +24,28 @@ export async function GET(request: NextRequest) {
         jabatan: true,
         golongan: true,
         jenisJabatan: true,
-        unitKerja: true,
         wilayah: true,
         profilePictureUrl: true,
         createdAt: true,
         updatedAt: true,
-        lastLogin: true
+        unitKerjaId: true
       }
     })
 
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 })
     }
+    // fetch unitKerja name
+    let unitKerjaName = ''
+    if (user.unitKerjaId) {
+      const uk = await prisma.unitKerja.findUnique({
+        where: { id: user.unitKerjaId },
+        select: { nama: true }
+      })
+      unitKerjaName = uk?.nama || ''
+    }
 
-    // Get work statistics
-    const workStats = await prisma.promotionProposal.groupBy({
-      by: ['status'],
-      where: {
-        pegawai: {
-          wilayah: user.wilayah
-        }
-      },
-      _count: {
-        status: true
-      }
-    })
-
-    // Get recent activities
-    const recentActivities = await prisma.activityLog.findMany({
-      where: {
-        userId: user.id
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 10,
-      select: {
-        id: true,
-        action: true,
-        details: true,
-        createdAt: true
-      }
-    })
-
-    // Calculate total handled proposals
-    const totalHandledProposals = await prisma.promotionProposal.count({
-      where: {
-        pegawai: {
-          wilayah: user.wilayah
-        }
-      }
-    })
-
-    // Get unit kerja count in wilayah
-    const totalUnitKerja = await prisma.unitKerja.count({
-      where: {
-        wilayah: user.wilayah
-      }
-    })
-
-    // Get pegawai count in wilayah
-    const totalPegawai = await prisma.user.count({
-      where: {
-        role: 'PEGAWAI',
-        wilayah: user.wilayah
-      }
-    })
-
+    // Minimal profile data (statistics and activities disabled temporarily)
     const profile = {
       id: user.id,
       nip: user.nip || '',
@@ -101,47 +56,25 @@ export async function GET(request: NextRequest) {
       jabatan: user.jabatan || '',
       golongan: user.golongan || '',
       jenisJabatan: user.jenisJabatan || '',
-      unitKerja: user.unitKerja || '',
+      unitKerja: unitKerjaName,
       wilayah: user.wilayah || '',
-      profilePictureUrl: user.profilePictureUrl,
+      profilePictureUrl: user.profilePictureUrl || null,
       createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      lastLogin: user.lastLogin,
-      statistics: {
-        totalHandledProposals,
-        totalUnitKerja,
-        totalPegawai,
-        workStats: workStats.map(stat => ({
-          status: stat.status,
-          count: stat._count.status
-        }))
-      },
-      recentActivities: recentActivities.map(activity => ({
-        id: activity.id,
-        action: activity.action,
-        details: activity.details,
-        createdAt: activity.createdAt
-      }))
+      updatedAt: user.updatedAt
     }
 
-    return NextResponse.json({
-      success: true,
-      profile
-    })
+    return NextResponse.json({ success: true, profile })
 
   } catch (error) {
     console.error('Error fetching operator profile:', error)
-    return NextResponse.json({ 
-      message: 'Internal server error' 
-    }, { status: 500 })
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
     const session = await getSession()
-    
-    if (!session.isLoggedIn || session.user?.role !== 'OPERATOR') {
+    if (!session?.user?.id || session.user.role !== 'OPERATOR') {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
 
@@ -209,43 +142,26 @@ export async function PUT(request: NextRequest) {
         jabatan: true,
         golongan: true,
         jenisJabatan: true,
-        unitKerja: true,
         wilayah: true,
         profilePictureUrl: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        unitKerjaId: true
       }
     })
 
     // Log activity
     await prisma.activityLog.create({
-      data: {
-        userId: session.user.id,
-        action: 'UPDATE_PROFILE',
-        details: `Operator ${updatedUser.name} memperbarui profil`,
-        metadata: {
-          changedFields: Object.keys(body),
-          userRole: 'OPERATOR'
-        }
-      }
+      data: { userId: session.user.id, action: 'UPDATE_PROFILE', details: JSON.stringify({ changedFields: Object.keys(body), userRole: 'OPERATOR' }) }
     })
 
-    const profile = {
-      id: updatedUser.id,
-      nip: updatedUser.nip || '',
-      nama: updatedUser.name || '',
-      email: updatedUser.email || '',
-      noHp: updatedUser.phone || '',
-      alamat: updatedUser.address || '',
-      jabatan: updatedUser.jabatan || '',
-      golongan: updatedUser.golongan || '',
-      jenisJabatan: updatedUser.jenisJabatan || '',
-      unitKerja: updatedUser.unitKerja || '',
-      wilayah: updatedUser.wilayah || '',
-      profilePictureUrl: updatedUser.profilePictureUrl,
-      createdAt: updatedUser.createdAt,
-      updatedAt: updatedUser.updatedAt
+    // fetch unitKerja name
+    let newUnitKerjaName = ''
+    if (updatedUser.unitKerjaId) {
+      const uk = await prisma.unitKerja.findUnique({ where: { id: updatedUser.unitKerjaId }, select: { nama: true } })
+      newUnitKerjaName = uk?.nama || ''
     }
+    const profile = { id: updatedUser.id, nip: updatedUser.nip||'', nama: updatedUser.name||'', email:updatedUser.email||'', noHp:updatedUser.phone||'', alamat:updatedUser.address||'', jabatan:updatedUser.jabatan||'', golongan:updatedUser.golongan||'', jenisJabatan:updatedUser.jenisJabatan||'', unitKerja:newUnitKerjaName, wilayah:updatedUser.wilayah||'', profilePictureUrl:updatedUser.profilePictureUrl, createdAt:updatedUser.createdAt, updatedAt:updatedUser.updatedAt }
 
     return NextResponse.json({
       success: true,
