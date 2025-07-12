@@ -154,10 +154,9 @@ export async function POST(request: NextRequest) {
     // Get user's unit kerja for validation
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { unitKerja: true, name: true }
+      select: { unitKerjaId: true, name: true }
     })
-
-    if (!user?.unitKerja) {
+    if (!user?.unitKerjaId) {
       return NextResponse.json({ message: 'Unit kerja not found' }, { status: 400 })
     }
 
@@ -170,7 +169,7 @@ export async function POST(request: NextRequest) {
             id: true,
             name: true,
             nip: true,
-            unitKerja: true
+            unitKerjaId: true
           }
         },
         documents: true
@@ -181,11 +180,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Proposal not found' }, { status: 404 })
     }
 
-    // Verify unit kerja matches or that the proposal status is 'MENUNGGU_KONFIRMASI' or 'MENUNGGU_VERIFIKASI_SEKOLAH'
+    // Verify unit kerja matches or that the proposal status allows overriding
     const isValidStatus = ['MENUNGGU_KONFIRMASI', 'MENUNGGU_VERIFIKASI_SEKOLAH', 'SUBMITTED', 'PENDING'].includes(proposal.status);
-    const unitKerjaMatches = typeof proposal.pegawai.unitKerja === 'object' 
-      ? proposal.pegawai.unitKerja?.id === user.unitKerja.id
-      : proposal.pegawai.unitKerja === user.unitKerja;
+    const unitKerjaMatches = proposal.pegawai.unitKerjaId === user.unitKerjaId
 
     if (!unitKerjaMatches && !isValidStatus) {
       return NextResponse.json({ 
@@ -217,23 +214,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the proposal
+    // Update the proposal status and notes
     const updatedProposal = await prisma.promotionProposal.update({
       where: { id: usulanId },
       data: {
         status: newStatus,
         notes: proposal.notes ? `${proposal.notes}\n\n${actionNotes}` : actionNotes,
-        // Create a timeline entry
-        timeline: {
-          create: {
-            status: newStatus,
-            notes: actionNotes,
-            actor: user.name,
-            actorRole: 'OPERATOR_SEKOLAH'
-          }
-        }
       }
     })
 
+    // Create notification for pegawai
     // Create notification for pegawai
     await prisma.notification.create({
       data: {
@@ -242,10 +232,9 @@ export async function POST(request: NextRequest) {
         message: actionNotes,
         type: action === 'APPROVE' ? 'SUCCESS' : action === 'REJECT' ? 'ERROR' : 'WARNING',
         isRead: false,
-        metadata: {
-          proposalId: usulanId,
-          action: action
-        }
+        userRole: null,
+        actionUrl: null,
+        actionLabel: null
       }
     })
 
@@ -256,9 +245,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Process usulan API error:', error)
-    return NextResponse.json(
-      { message: 'Internal server error' },
-      { status: 500 }
-    )
+    const msg = error instanceof Error ? error.message : 'Internal server error'
+    return NextResponse.json({ message: msg }, { status: 500 })
   }
 }

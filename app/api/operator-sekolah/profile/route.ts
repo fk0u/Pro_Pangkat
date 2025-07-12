@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -15,9 +16,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Ambil data user terlebih dahulu tanpa include untuk debug
+    // Ambil data user dengan select field yang diperlukan
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id }
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        nip: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        jabatan: true,
+        unitKerjaId: true,
+        golongan: true,
+        wilayah: true,
+        createdAt: true,
+        updatedAt: true
+      }
     })
 
     if (!user) {
@@ -25,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    console.log('Found user:', { id: user.id, name: user.name, role: user.role, unitKerja: user.unitKerja })
+    console.log('Found user:', { id: user.id, name: user.name, role: session.user.role, unitKerjaId: user.unitKerjaId })
 
     // Coba ambil unit kerja jika ada unitKerjaId
     let unitKerjaInfo = null
@@ -47,27 +62,26 @@ export async function GET(request: NextRequest) {
     const profile = {
       id: user.id,
       nip: user.nip || '',
-      nama: user.name || '', // Field di database adalah 'name'
+      nama: user.name || '',
       email: user.email,
-      noHp: user.phone, // Field di database adalah 'phone'
+      noHp: user.phone,
       jabatan: user.jabatan || '',
-      unitKerja: unitKerjaInfo?.nama || user.unitKerja || '',
+      unitKerja: unitKerjaInfo?.nama || '',
       golongan: user.golongan || '',
-      alamat: user.address, // Field di database adalah 'address'
-      statusKepegawaian: user.statusKepegawaian || '',
-      jenisKelamin: user.jenisKelamin || '',
-      pendidikanTerakhir: user.pendidikanTerakhir,
-      // Field yang tidak ada di database - berikan nilai default
+      alamat: user.address,
+      statusKepegawaian: '',
+      jenisKelamin: '',
+      pendidikanTerakhir: '',
       tanggalLahir: null,
       tempatLahir: '',
       statusPerkawinan: '',
       agama: '',
-      tanggalMasukKerja: user.tanggalMasukKerja,
-      masaKerja: user.masaKerja,
-      wilayah: unitKerjaInfo?.wilayah || user.wilayah,
+      tanggalMasukKerja: null,
+      masaKerja: '',
+      wilayah: unitKerjaInfo?.wilayah || user.wilayah || null,
       unitKerjaId: user.unitKerjaId,
-      role: user.role,
-      lastLogin: user.lastLogin,
+      role: session.user.role,
+      lastLogin: null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     }
@@ -110,8 +124,7 @@ export async function PUT(request: NextRequest) {
       nama,
       email,
       noHp,
-      alamat,
-      pendidikanTerakhir
+      alamat
     } = body
 
     // Validasi data yang diperlukan
@@ -139,8 +152,7 @@ export async function PUT(request: NextRequest) {
       updatedAt: new Date()
     }
 
-    // Field yang ada di database tapi optional
-    if (pendidikanTerakhir !== undefined) updateData.pendidikanTerakhir = pendidikanTerakhir || null
+    // No other optional fields to update in database
 
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
@@ -164,17 +176,18 @@ export async function PUT(request: NextRequest) {
     }
 
     // Log aktivitas
-    try {        await prisma.activityLog.create({
-          data: {
-            userId: session.user.id,
-            action: 'UPDATE_PROFILE',
+    try {
+      await prisma.activityLog.create({
+        data: {
+          userId: session.user.id,
+          action: 'UPDATE_PROFILE',
+          details: {
             description: `User ${updatedUser.name} memperbarui profil`,
-            metadata: {
-              changedFields: Object.keys(body),
-              userRole: session.user.role
-            }
+            changedFields: Object.keys(body),
+            userRole: session.user.role
           }
-        })
+        }
+      })
     } catch (logError) {
       console.error('Error creating activity log:', logError)
       // Tidak perlu menggagalkan request jika log gagal
@@ -183,27 +196,26 @@ export async function PUT(request: NextRequest) {
     const profile = {
       id: updatedUser.id,
       nip: updatedUser.nip || '',
-      nama: updatedUser.name || '', // Field di database adalah 'name'
+      nama: updatedUser.name || '',
       email: updatedUser.email,
-      noHp: updatedUser.phone, // Field di database adalah 'phone'
+      noHp: updatedUser.phone,
       jabatan: updatedUser.jabatan || '',
-      unitKerja: unitKerjaInfo?.nama || updatedUser.unitKerja || '',
+      unitKerja: unitKerjaInfo?.nama || '',
       golongan: updatedUser.golongan || '',
-      alamat: updatedUser.address, // Field di database adalah 'address'
-      statusKepegawaian: updatedUser.statusKepegawaian || '',
-      jenisKelamin: updatedUser.jenisKelamin || '',
-      pendidikanTerakhir: updatedUser.pendidikanTerakhir,
-      // Field yang tidak ada di database - berikan nilai default
+      alamat: updatedUser.address,
+      statusKepegawaian: '',
+      jenisKelamin: '',
+      pendidikanTerakhir: '',
       tanggalLahir: null,
       tempatLahir: '',
       statusPerkawinan: '',
       agama: '',
-      tanggalMasukKerja: updatedUser.tanggalMasukKerja,
-      masaKerja: updatedUser.masaKerja,
-      wilayah: unitKerjaInfo?.wilayah || updatedUser.wilayah,
+      tanggalMasukKerja: null,
+      masaKerja: '',
+      wilayah: unitKerjaInfo?.wilayah || null,
       unitKerjaId: updatedUser.unitKerjaId,
-      role: updatedUser.role,
-      lastLogin: updatedUser.lastLogin,
+      role: session.user.role,
+      lastLogin: null,
       createdAt: updatedUser.createdAt,
       updatedAt: updatedUser.updatedAt
     }

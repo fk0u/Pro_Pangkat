@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { Prisma } from '@prisma/client'
 
 export async function POST(request: NextRequest) {
@@ -91,8 +91,8 @@ export async function POST(request: NextRequest) {
         data: {
           userId: session.user.id,
           action: 'CHANGE_PASSWORD',
-          description: `User ${user.name} mengubah password`,
-          metadata: {
+          details: {
+            description: `User ${user.name} mengubah password`,
             userRole: user.role,
             timestamp: new Date()
           }

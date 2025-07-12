@@ -49,7 +49,7 @@ export const POST = withAuth(async (req: NextRequest, user: any) => {
         endDate: new Date(endDate),
         isActive: isActive !== undefined ? isActive : true,
         priority: priority || 1,
-        wilayahId
+        wilayah: wilayahId || null // pastikan tidak undefined
       }
     })
 

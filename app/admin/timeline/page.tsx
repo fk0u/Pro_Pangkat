@@ -425,132 +425,130 @@ export default function TimelinePage() {
 
       {/* Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {modalType === "add" ? "Tambah Timeline" : "Edit Timeline"}
             </DialogTitle>
           </DialogHeader>
-          
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="title">Judul Timeline <span className="text-red-500">*</span></Label>
-              <input
-                id="title"
-                type="text"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm focus:ring focus:ring-primary focus:border-primary dark:bg-gray-800 dark:text-white"
-                placeholder="Masukkan judul timeline"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Deskripsi</Label>
-              <Textarea
-                id="description"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Deskripsi singkat tentang timeline ini"
-                className="w-full"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="jabatanType">Jenis Jabatan <span className="text-red-500">*</span></Label>
-              <Select 
-                value={form.jabatanType} 
-                onValueChange={(value) => setForm({ ...form, jabatanType: value })}
-              >
-                <SelectTrigger id="jabatanType" className="w-full">
-                  <SelectValue placeholder="Pilih jenis jabatan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Jabatan</SelectItem>
-                  <SelectItem value="pelaksana">Jabatan Pelaksana</SelectItem>
-                  <SelectItem value="struktural">Jabatan Struktural</SelectItem>
-                  <SelectItem value="fungsional">Jabatan Fungsional</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-2">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="startDate">Tanggal Mulai <span className="text-red-500">*</span></Label>
+                <Label htmlFor="title">Judul Timeline <span className="text-red-500">*</span></Label>
                 <input
-                  id="startDate"
-                  type="date"
-                  value={form.startDate}
-                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  id="title"
+                  type="text"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
                   className="w-full border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm focus:ring focus:ring-primary focus:border-primary dark:bg-gray-800 dark:text-white"
-                  title="Pilih tanggal mulai"
-                  placeholder="Pilih tanggal mulai"
-                  aria-label="Tanggal Mulai"
+                  placeholder="Masukkan judul timeline"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="endDate">Tanggal Selesai <span className="text-red-500">*</span></Label>
-                <input
-                  id="endDate"
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                  className="w-full border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm focus:ring focus:ring-primary focus:border-primary dark:bg-gray-800 dark:text-white"
-                  title="Pilih tanggal selesai"
-                  placeholder="Pilih tanggal selesai"
-                  aria-label="Tanggal Selesai"
+                <Label htmlFor="description">Deskripsi</Label>
+                <Textarea
+                  id="description"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Deskripsi singkat tentang timeline ini"
+                  className="w-full"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="jabatanType">Jenis Jabatan <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={form.jabatanType} 
+                  onValueChange={(value) => setForm({ ...form, jabatanType: value })}
+                >
+                  <SelectTrigger id="jabatanType" className="w-full">
+                    <SelectValue placeholder="Pilih jenis jabatan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Jabatan</SelectItem>
+                    <SelectItem value="pelaksana">Jabatan Pelaksana</SelectItem>
+                    <SelectItem value="struktural">Jabatan Struktural</SelectItem>
+                    <SelectItem value="fungsional">Jabatan Fungsional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="wilayahId">Wilayah (Opsional)</Label>
-              <Select 
-                value={form.wilayahId || "all"} 
-                onValueChange={(value) => setForm({ ...form, wilayahId: value === "all" ? null : value })}
-              >
-                <SelectTrigger id="wilayahId" className="w-full">
-                  <SelectValue placeholder="Pilih wilayah (opsional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Wilayah</SelectItem>
-                  {wilayahOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500">Jika dipilih, timeline hanya berlaku untuk wilayah tersebut</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="priority">Prioritas</Label>
-              <Select 
-                value={form.priority.toString()} 
-                onValueChange={(value) => setForm({ ...form, priority: parseInt(value) })}
-              >
-                <SelectTrigger id="priority" className="w-full">
-                  <SelectValue placeholder="Pilih prioritas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Normal</SelectItem>
-                  <SelectItem value="2">Penting</SelectItem>
-                  <SelectItem value="3">Mendesak</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch 
-                id="isActive" 
-                checked={form.isActive}
-                onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
-              />
-              <Label htmlFor="isActive">Timeline Aktif</Label>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Tanggal Mulai <span className="text-red-500">*</span></Label>
+                  <input
+                    id="startDate"
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm focus:ring focus:ring-primary focus:border-primary dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">Tanggal Selesai <span className="text-red-500">*</span></Label>
+                  <input
+                    id="endDate"
+                    type="date"
+                    value={form.endDate}
+                    onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 text-sm focus:ring focus:ring-primary focus:border-primary dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wilayahId">Wilayah (Opsional)</Label>
+                <Select 
+                  value={form.wilayahId || "all"} 
+                  onValueChange={(value) => setForm({ ...form, wilayahId: value === "all" ? null : value })}
+                >
+                  <SelectTrigger id="wilayahId" className="w-full">
+                    <SelectValue placeholder="Pilih wilayah (opsional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Wilayah</SelectItem>
+                    {wilayahOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">Jika dipilih, timeline hanya berlaku untuk wilayah tersebut</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="priority">Prioritas</Label>
+                <Select 
+                  value={form.priority.toString()} 
+                  onValueChange={(value) => setForm({ ...form, priority: parseInt(value) })}
+                >
+                  <SelectTrigger id="priority" className="w-full">
+                    <SelectValue placeholder="Pilih prioritas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Normal</SelectItem>
+                    <SelectItem value="2">Penting</SelectItem>
+                    <SelectItem value="3">Mendesak</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="isActive" 
+                  checked={form.isActive}
+                  onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+                />
+                <Label htmlFor="isActive">Timeline Aktif</Label>
+              </div>
             </div>
           </div>
-          
+
           <DialogFooter>
             {modalType === "edit" && (
               <Button 
@@ -574,6 +572,7 @@ export default function TimelinePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

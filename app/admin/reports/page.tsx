@@ -35,6 +35,13 @@ import {
   Line
 } from "recharts"
 
+// Wrapper to provide fixed height for all chart containers
+const ChartWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ width: '100%', height: 300 }}>
+    {children}
+  </div>
+)
+
 interface ReportData {
   id: string
   pegawai: {
@@ -549,8 +556,9 @@ export default function ReportExportPage() {
                       <CardDescription className="text-sm">Breakdown status semua usulan dalam sistem</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
-                        <PieChart>
+                      <div className="w-full h-64 md:h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
                           <Pie
                             data={statistics.byStatus.map((item, index) => ({
                               ...item,
@@ -571,7 +579,8 @@ export default function ReportExportPage() {
                           </Pie>
                           <Tooltip />
                         </PieChart>
-                      </ResponsiveContainer>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -584,8 +593,9 @@ export default function ReportExportPage() {
                       <CardDescription className="text-sm">Jumlah usulan berdasarkan wilayah kerja</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
-                        <BarChart data={statistics.byWilayah}>
+                      <div className="w-full h-64 md:h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={statistics.byWilayah}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="wilayah" fontSize={12} />
                           <YAxis fontSize={12} />
@@ -593,7 +603,8 @@ export default function ReportExportPage() {
                           <Legend />
                           <Bar dataKey="count" fill="#8884d8" />
                         </BarChart>
-                      </ResponsiveContainer>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -606,8 +617,9 @@ export default function ReportExportPage() {
                       <CardDescription className="text-sm">Perkembangan usulan berdasarkan periode</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
-                        <LineChart data={statistics.byPeriode}>
+                      <div className="w-full h-64 md:h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={statistics.byPeriode}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="periode" fontSize={12} />
                           <YAxis fontSize={12} />
@@ -615,7 +627,8 @@ export default function ReportExportPage() {
                           <Legend />
                           <Line type="monotone" dataKey="count" stroke="#8884d8" strokeWidth={2} />
                         </LineChart>
-                      </ResponsiveContainer>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -628,8 +641,9 @@ export default function ReportExportPage() {
                       <CardDescription className="text-sm">Usulan berdasarkan golongan pegawai</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
-                        <BarChart data={statistics.byGolongan}>
+                      <div className="w-full h-64 md:h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={statistics.byGolongan}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="golongan" fontSize={12} />
                           <YAxis fontSize={12} />
@@ -637,7 +651,8 @@ export default function ReportExportPage() {
                           <Legend />
                           <Bar dataKey="count" fill="#82ca9d" />
                         </BarChart>
-                      </ResponsiveContainer>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
