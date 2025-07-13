@@ -12,9 +12,21 @@ export function getWilayahName(wilayahCode: string): string {
   return wilayahMap[wilayahCode] || wilayahCode
 }
 
-export function formatWilayahForDisplay(wilayahCode: string | null | undefined): string {
+export function formatWilayahForDisplay(wilayahCode: string | null | undefined | { id?: string; nama?: string; wilayah?: string }): string {
   if (!wilayahCode) return 'Belum Ditentukan'
-  return getWilayahName(wilayahCode)
+  
+  // Handle the case where wilayahCode is an object with a nama property
+  if (typeof wilayahCode === 'object' && wilayahCode !== null) {
+    // Periksa terlebih dahulu apakah properti ada sebelum mengaksesnya
+    if (wilayahCode.nama) return wilayahCode.nama
+    if (wilayahCode.id) return getWilayahName(wilayahCode.id)
+    if (wilayahCode.wilayah) return getWilayahName(wilayahCode.wilayah)
+    
+    // Jika tidak ada properti yang dapat digunakan, kembalikan nilai default
+    return 'Belum Ditentukan'
+  }
+  
+  return getWilayahName(wilayahCode as string)
 }
 
 export const WILAYAH_OPTIONS = [

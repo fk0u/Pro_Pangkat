@@ -42,7 +42,16 @@ export async function GET(
     try {
       const uploadsDir = join(process.cwd(), 'uploads')
       const filePath = join(uploadsDir, document.fileUrl.replace('/uploads/', ''))
-      const fileBuffer = await readFile(filePath)
+      
+      console.log(`Document preview path: ${filePath}`)
+      
+      let fileBuffer
+      try {
+        fileBuffer = await readFile(filePath)
+      } catch (readError) {
+        console.error(`Error reading file at ${filePath}:`, readError)
+        return NextResponse.json({ error: "File not found or inaccessible" }, { status: 404 })
+      }
       
       // Determine content type based on file extension
       const extension = document.fileName.split('.').pop()?.toLowerCase()
@@ -78,7 +87,7 @@ export async function GET(
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          'Cache-Control': 'public, max-age=600',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
           // Relaxed CSP to allow embedding in iframes from any source
           'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; object-src 'self' blob:; frame-ancestors *",
           'X-Frame-Options': 'ALLOWALL',

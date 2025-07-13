@@ -233,20 +233,19 @@ export async function POST(request: NextRequest) {
             website: row['WEBSITE'] ? String(row['WEBSITE']).trim() : null,
             status: 'Aktif',
             wilayah: user.wilayah
-          }
-          }
+          };
           
           // Create new unit kerja
-          await prisma.unitKerja.create({ data: unitKerjaData })
+          await prisma.unitKerja.create({ data: unitKerjaData });
           
-          results.success++
-          results.created.push(nama)
+          results.success++;
+          results.created.push(nama);
           
         } catch (error) {
-          console.error(`Error processing row ${rowNumber}:`, error)
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-          results.errors.push(`Baris ${rowNumber}: ${errorMessage}`)
-          results.failed++
+          console.error(`Error processing row ${rowNumber}:`, error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Baris ${rowNumber}: ${errorMessage}`);
+          results.failed++;
         }
       }
       
@@ -254,17 +253,17 @@ export async function POST(request: NextRequest) {
         success: true,
         message: `Import selesai. ${results.success} unit kerja berhasil ditambahkan.`,
         results
-      })
+      });
       
     } else {
       // Handle single unit kerja creation
-      let data
+      let data;
       
       if (contentType?.includes('application/json')) {
-        data = await request.json()
+        data = await request.json();
       } else {
         // Handle FormData
-        const formData = await request.formData()
+        const formData = await request.formData();
         data = {
           nama: formData.get('nama'),
           jenjang: formData.get('jenjang'),
@@ -278,7 +277,7 @@ export async function POST(request: NextRequest) {
           phone: formData.get('phone') || null,
           website: formData.get('website') || null,
           status: formData.get('status') || 'Aktif'
-        }
+        };
       }
       
       // Validate required fields

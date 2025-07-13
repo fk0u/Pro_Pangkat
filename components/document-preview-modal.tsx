@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useState, useCallback, useEffect } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -59,6 +59,7 @@ export default function DocumentPreviewModal({
     switch (status) {
       case "PENDING":
       case "SUBMITTED":
+      case "MENUNGGU_VERIFIKASI":
         return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">Menunggu Verifikasi</span>;
       case "APPROVED":
       case "DISETUJUI":
@@ -66,6 +67,8 @@ export default function DocumentPreviewModal({
       case "REJECTED":
       case "DITOLAK":
         return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">Ditolak</span>;
+      case "PERLU_PERBAIKAN":
+        return <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100">Perlu Perbaikan</span>;
       default:
         return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100">{status}</span>;
     }
@@ -73,12 +76,15 @@ export default function DocumentPreviewModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col dark:bg-slate-900 dark:border-slate-700">
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col dark:bg-slate-900 dark:border-slate-700" aria-describedby="document-preview-description">
         <DialogHeader>
           <DialogTitle className="flex justify-between items-center dark:text-white">
             <span>{title}</span>
             {/* No X button here, it's already part of DialogContent */}
           </DialogTitle>
+          <div id="document-preview-description" className="sr-only">
+            Preview dokumen dan opsi untuk mengunduh atau membuka di tab baru
+          </div>
         </DialogHeader>
 
         {documents.length > 0 ? (
@@ -127,7 +133,7 @@ export default function DocumentPreviewModal({
                     {/* Try the FallbackPdfViewer first */}
                     <div className={`h-full ${error[doc.id] ? 'hidden' : 'block'}`}>
                       <FallbackPdfViewer 
-                        url={doc.previewUrl}
+                        url={`/api/documents/${doc.id}/preview`}
                         onError={(err) => {
                           setError({...error, [doc.id]: "Menggunakan viewer alternatif..."});
                           console.error("Failed to load document:", err);

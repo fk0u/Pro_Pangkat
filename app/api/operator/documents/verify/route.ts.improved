@@ -1,0 +1,160 @@
+"use client"
+
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import db from "@/lib/db"
+import { z } from "zod"
+
+// Validation schema for document verification
+const VerifyDocumentSchema = z.object({
+  documentId: z.string().min(1, "ID dokumen diperlukan"),
+  proposalId: z.string().min(1, "ID usulan diperlukan"),
+  action: z.enum(["approve", "reject"], {
+    required_error: "Tindakan harus 'approve' atau 'reject'",
+  }),
+  catatan: z.string().optional(),
+})
+
+export async function POST(req: Request) {
+  try {
+    // Auth check
+    const session = await getServerSession(authOptions)
+    
+    if (!session || !session.user) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Tidak memiliki akses" },
+        { status: 401 }
+      )
+    }
+    
+    // Only operators can verify documents
+    if (session.user.role !== "OPERATOR") {
+      return NextResponse.json(
+        { error: "Forbidden", message: "Hanya operator yang dapat memverifikasi dokumen" },
+        { status: 403 }
+      )
+    }
+    
+    // Parse request
+    const body = await req.json()
+    
+    // Validate request body
+    const result = VerifyDocumentSchema.safeParse(body)
+    
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Bad Request", message: result.error.errors[0].message },
+        { status: 400 }
+      )
+    }
+    
+    const { documentId, proposalId, action, catatan } = result.data
+    
+    // Get current user (operator)
+    const operator = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, unitKerjaId: true },
+    })
+    
+    if (!operator) {
+      return NextResponse.json(
+        { error: "Not Found", message: "Operator tidak ditemukan" },
+        { status: 404 }
+      )
+    }
+    
+    // Get proposal and check if it belongs to the operator's unit
+    const proposal = await db.proposal.findUnique({
+      where: { id: proposalId },
+      include: {
+        pegawai: {
+          select: {
+            id: true,
+            unitKerjaId: true,
+          },
+        },
+        documents: {
+          where: { id: documentId },
+          select: { id: true, status: true },
+        },
+      },
+    })
+    
+    if (!proposal) {
+      return NextResponse.json(
+        { error: "Not Found", message: "Usulan tidak ditemukan" },
+        { status: 404 }
+      )
+    }
+    
+    // Check if operator has access to this proposal
+    if (proposal.pegawai.unitKerjaId !== operator.unitKerjaId) {
+      return NextResponse.json(
+        { error: "Forbidden", message: "Tidak memiliki akses untuk memverifikasi dokumen ini" },
+        { status: 403 }
+      )
+    }
+    
+    // Check if document exists
+    if (proposal.documents.length === 0) {
+      return NextResponse.json(
+        { error: "Not Found", message: "Dokumen tidak ditemukan" },
+        { status: 404 }
+      )
+    }
+    
+    // Update document status
+    const updatedDocument = await db.document.update({
+      where: { id: documentId },
+      data: {
+        status: action === "approve" ? "DISETUJUI" : "DITOLAK",
+        catatan: catatan || null,
+        verifiedAt: new Date(),
+        verifiedById: session.user.id,
+      },
+    })
+    
+    // Count verified documents for this proposal
+    const documentsCount = await db.document.count({
+      where: {
+        proposalId: proposalId,
+      },
+    })
+    
+    const verifiedDocumentsCount = await db.document.count({
+      where: {
+        proposalId: proposalId,
+        status: "DISETUJUI",
+      },
+    })
+    
+    // Check if all documents are verified
+    const allDocumentsVerified = documentsCount === verifiedDocumentsCount
+
+    // If all documents are verified, we can automatically update the proposal status
+    if (allDocumentsVerified && proposal.status === "DIPROSES_OPERATOR") {
+      await db.proposal.update({
+        where: { id: proposalId },
+        data: {
+          status: "DISETUJUI_OPERATOR",
+        },
+      })
+    }
+    
+    // Return success response with updated document
+    return NextResponse.json({
+      success: true,
+      message: action === "approve" ? "Dokumen berhasil diverifikasi" : "Dokumen berhasil ditolak",
+      data: updatedDocument,
+      allDocumentsVerified,
+    })
+    
+  } catch (error) {
+    console.error("Error verifying document:", error)
+    return NextResponse.json(
+      { error: "Internal Server Error", message: "Terjadi kesalahan saat memverifikasi dokumen" },
+      { status: 500 }
+    )
+  }
+}

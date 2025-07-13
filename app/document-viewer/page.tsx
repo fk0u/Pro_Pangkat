@@ -52,7 +52,7 @@ export default function DocumentViewerPage() {
     <div className="min-h-screen flex flex-col">
       {viewUrl && (
         <object
-          data={viewUrl}
+          data={viewUrl + "?t=" + new Date().getTime()}  // Add timestamp to prevent caching
           type="application/pdf"
           className="w-full h-screen"
         >

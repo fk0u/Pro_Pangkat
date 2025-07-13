@@ -1,0 +1,1053 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { Eye, CheckCircle, X, FileText, Download, MessageCircle, AlertTriangle, RefreshCw, Search, Filter } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { DashboardLayout } from "@/components/dashboard-layout"
+import { motion } from "framer-motion"
+import { formatWilayahForDisplay } from "@/lib/wilayah-utils"
+import { format, formatDistance } from "date-fns"
+import { id } from "date-fns/locale"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useToast } from "@/hooks/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
+
+interface DocumentItem {
+  id: string
+  fileName: string
+  fileUrl: string
+  status: string
+  catatan: string | null
+  uploadedAt: string
+  verifiedAt?: string | null
+  requirement: {
+    id: string
+    name: string
+    description: string | null
+    isRequired: boolean
+    category: string | null
+    format: string | null
+    maxSize: number | null
+  }
+}
+
+interface Proposal {
+  id: string
+  periode: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  pegawai: {
+    id: string
+    name: string
+    nip: string
+    unitKerja: {
+      id: string
+      nama: string
+      wilayah: string
+    }
+    jabatan: string
+    golongan: string
+    wilayah: string | {
+      id: string
+      nama: string
+      wilayah?: string
+    }
+  }
+  documents: DocumentItem[]
+  documentProgress: {
+    total: number
+    completed: number
+    pending: number
+    rejected: number
+    percentage: number
+  }
+}
+
+export default function OperatorInboxPage() {
+  // State
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [proposals, setProposals] = useState<Proposal[]>([])
+  const [filteredProposals, setFilteredProposals] = useState<Proposal[]>([])
+  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
+  const [showDetail, setShowDetail] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actionType, setActionType] = useState<"approve" | "reject" | "process" | "forward" | null>(null)
+  const [showActionModal, setShowActionModal] = useState(false)
+  const [actionNote, setActionNote] = useState("")
+  const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null)
+  const [documentActionType, setDocumentActionType] = useState<"approve" | "reject" | null>(null)
+  const [showDocumentActionModal, setShowDocumentActionModal] = useState(false)
+  const [documentNote, setDocumentNote] = useState("")
+  const [isVerifyingDocument, setIsVerifyingDocument] = useState(false)
+  const [currentTab, setCurrentTab] = useState("semua")
+  const { toast } = useToast()
+
+  // Fetch data
+  const fetchInboxData = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch("/api/operator/inbox")
+      
+      if (response.ok) {
+        const result = await response.json()
+        setProposals(result.data)
+        setFilteredProposals(result.data)
+      } else {
+        console.error("Error fetching inbox data:", await response.text())
+      }
+    } catch (error) {
+      console.error("Failed to fetch inbox data:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchInboxData()
+  }, [fetchInboxData])
+
+  // Apply filters
+  useEffect(() => {
+    let filtered = [...proposals]
+    
+    // Search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase()
+      filtered = filtered.filter(
+        proposal => proposal.pegawai.name.toLowerCase().includes(searchLower) ||
+                  proposal.pegawai.nip.includes(searchTerm) ||
+                  proposal.pegawai.unitKerja.nama.toLowerCase().includes(searchLower)
+      )
+    }
+    
+    // Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(proposal => proposal.status === statusFilter)
+    }
+    
+    // Tab filter
+    if (currentTab === "perlu-verifikasi") {
+      filtered = filtered.filter(proposal => 
+        proposal.documentProgress.pending > 0 && 
+        proposal.status !== "DISETUJUI_OPERATOR" && 
+        proposal.status !== "DIPROSES_ADMIN"
+      )
+    }
+    
+    setFilteredProposals(filtered)
+  }, [searchTerm, statusFilter, proposals, currentTab])
+
+  // View proposal detail
+  const viewProposalDetail = async (proposal: Proposal) => {
+    try {
+      setLoadingDetail(true)
+      setSelectedProposal(proposal)
+      setShowDetail(true)
+      
+      // Fetch the latest data for this proposal
+      const response = await fetch(`/api/operator/inbox/${proposal.id}`)
+      
+      if (response.ok) {
+        const result = await response.json()
+        setSelectedProposal(result.data)
+      } else {
+        console.error("Error fetching proposal details:", await response.text())
+      }
+    } catch (error) {
+      console.error("Error loading proposal details:", error)
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  // Handle back button
+  const handleBack = () => {
+    setShowDetail(false)
+    setSelectedProposal(null)
+  }
+
+  // Filter change handlers
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+  }
+  
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value)
+  }
+
+  // Action handlers
+  const openActionModal = (proposal: Proposal, type: "approve" | "reject" | "process" | "forward") => {
+    setSelectedProposal(proposal)
+    setActionType(type)
+    setActionNote("")
+    setShowActionModal(true)
+  }
+
+  // Handle document action (approve/reject)
+  const handleDocumentAction = (document: DocumentItem, actionType: "approve" | "reject") => {
+    setSelectedDocument(document)
+    setDocumentActionType(actionType)
+    setDocumentNote("")
+    setShowDocumentActionModal(true)
+  }
+
+  // Submit proposal action
+  const submitAction = async () => {
+    if (!selectedProposal || !actionType) return
+    
+    try {
+      setIsSubmitting(true)
+      console.log("Submitting action:", {
+        proposalId: selectedProposal.id,
+        action: actionType,
+        catatan: actionNote,
+      });
+      
+      const response = await fetch("/api/operator/proposals/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposalId: selectedProposal.id,
+          action: actionType,
+          catatan: actionNote,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Action success:", result);
+        
+        // Update local data
+        setShowActionModal(false)
+        
+        // Refresh data
+        await fetchInboxData()
+        
+        toast({
+          title: "Berhasil",
+          description: `Status usulan berhasil diubah menjadi "${
+            actionType === "approve" 
+              ? "Disetujui" 
+              : actionType === "reject" 
+              ? "Ditolak" 
+              : "Diproses"
+          }"`,
+          variant: "default",
+        })
+        
+        // If we're in detail view, refresh that specific proposal
+        if (selectedProposal) {
+          try {
+            const updatedProposalResponse = await fetch(`/api/operator/inbox/${selectedProposal.id}`)
+            if (updatedProposalResponse.ok) {
+              const result = await updatedProposalResponse.json()
+              setSelectedProposal(result.data)
+            } else {
+              console.error("Error refreshing proposal details:", await updatedProposalResponse.text())
+            }
+          } catch (error) {
+            console.error("Error fetching updated proposal:", error)
+          }
+        }
+        
+      } else {
+        console.error("Error updating proposal status:", await response.text())
+        toast({
+          title: "Gagal",
+          description: "Terjadi kesalahan saat memperbarui status usulan",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error submitting action:", error)
+      toast({
+        title: "Gagal",
+        description: "Terjadi kesalahan saat memproses permintaan",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+  
+  // Submit document action
+  const submitDocumentAction = async () => {
+    if (!selectedDocument || !documentActionType || !selectedProposal) return
+
+    try {
+      setIsVerifyingDocument(true)
+      console.log("Submitting document action:", {
+        documentId: selectedDocument.id,
+        proposalId: selectedProposal.id,
+        action: documentActionType,
+        catatan: documentNote,
+      });
+      
+      const response = await fetch("/api/operator/documents/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentId: selectedDocument.id,
+          proposalId: selectedProposal.id,
+          action: documentActionType,
+          catatan: documentNote,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Document verification success:", result);
+        
+        // Close modal
+        setShowDocumentActionModal(false)
+        
+        // Refresh data (local first for immediate feedback)
+        if (selectedProposal) {
+          // Create a deep copy of the selected proposal
+          const updatedProposal = JSON.parse(JSON.stringify(selectedProposal)) as Proposal;
+          
+          // Find and update the document in the local state
+          const docIndex = updatedProposal.documents.findIndex(doc => doc.id === selectedDocument.id);
+          if (docIndex !== -1) {
+            updatedProposal.documents[docIndex].status = documentActionType === "approve" ? "DISETUJUI" : "DITOLAK";
+            updatedProposal.documents[docIndex].catatan = documentNote;
+            
+            // Update document progress counts
+            const pendingCount = updatedProposal.documents.filter(d => d.status === "MENUNGGU_VERIFIKASI").length;
+            const approvedCount = updatedProposal.documents.filter(d => d.status === "DISETUJUI").length;
+            const rejectedCount = updatedProposal.documents.filter(d => d.status === "DITOLAK").length;
+            const totalCount = updatedProposal.documents.length;
+            
+            updatedProposal.documentProgress = {
+              total: totalCount,
+              completed: approvedCount,
+              pending: pendingCount,
+              rejected: rejectedCount,
+              percentage: Math.round((approvedCount / totalCount) * 100)
+            };
+            
+            // Update the selected proposal in state
+            setSelectedProposal(updatedProposal);
+          }
+        }
+        
+        // Show success toast
+        toast({
+          title: "Berhasil",
+          description: documentActionType === "approve" 
+            ? "Dokumen berhasil diverifikasi" 
+            : "Dokumen berhasil ditolak",
+          variant: "default",
+        })
+        
+        // Fetch fresh data from server
+        await fetchInboxData();
+        
+        // If we're in detail view, refresh that specific proposal from server
+        if (selectedProposal) {
+          try {
+            const updatedProposalResponse = await fetch(`/api/operator/inbox/${selectedProposal.id}`)
+            if (updatedProposalResponse.ok) {
+              const result = await updatedProposalResponse.json()
+              setSelectedProposal(result.data)
+            }
+          } catch (error) {
+            console.error("Error fetching updated proposal:", error)
+          }
+        }
+      } else {
+        console.error("Error verifying document:", await response.text())
+        toast({
+          title: "Gagal",
+          description: "Terjadi kesalahan saat memverifikasi dokumen",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error submitting document action:", error)
+      toast({
+        title: "Gagal",
+        description: "Terjadi kesalahan saat memproses dokumen",
+        variant: "destructive",
+      })
+    } finally {
+      setIsVerifyingDocument(false)
+    }
+  }
+
+  // Verify all documents in a proposal
+  const verifyAllDocuments = async (proposalId: string) => {
+    try {
+      setIsSubmitting(true)
+      console.log("Verifying all documents for proposal:", proposalId);
+      
+      const response = await fetch("/api/operator/documents/verify-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposalId: proposalId,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Verify all documents success:", result);
+        
+        // Show success toast
+        toast({
+          title: "Berhasil",
+          description: "Semua dokumen telah berhasil diverifikasi",
+          variant: "default",
+        })
+        
+        // Refresh data
+        await fetchInboxData()
+        
+        // If we're in detail view, refresh that specific proposal
+        if (selectedProposal && selectedProposal.id === proposalId) {
+          try {
+            const updatedProposalResponse = await fetch(`/api/operator/inbox/${proposalId}`)
+            if (updatedProposalResponse.ok) {
+              const result = await updatedProposalResponse.json()
+              setSelectedProposal(result.data)
+            } else {
+              console.error("Error refreshing proposal details:", await updatedProposalResponse.text())
+            }
+          } catch (error) {
+            console.error("Error fetching updated proposal:", error)
+          }
+        }
+      } else {
+        console.error("Error verifying all documents:", await response.text())
+        toast({
+          title: "Gagal",
+          description: "Terjadi kesalahan saat memverifikasi semua dokumen",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error verifying all documents:", error)
+      toast({
+        title: "Gagal",
+        description: "Terjadi kesalahan saat memproses dokumen",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Get status badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "DRAFT":
+        return <Badge variant="outline" className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100">Draft</Badge>
+      case "DIAJUKAN":
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">Diajukan</Badge>
+      case "DIPROSES_OPERATOR":
+        return <Badge variant="outline" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100">Diproses Operator</Badge>
+      case "DIKEMBALIKAN_OPERATOR":
+        return <Badge variant="outline" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">Dikembalikan</Badge>
+      case "DISETUJUI_OPERATOR":
+        return <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Disetujui Operator</Badge>
+      case "DITOLAK_OPERATOR":
+        return <Badge variant="outline" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">Ditolak Operator</Badge>
+      case "DIPROSES_ADMIN":
+        return <Badge variant="outline" className="bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-100">Diproses Admin</Badge>
+      case "PERLU_PERBAIKAN":
+        return <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100">Perlu Perbaikan</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+  
+  // Get document status badge
+  const getDocumentStatusBadge = (status: string) => {
+    switch (status) {
+      case "MENUNGGU_VERIFIKASI":
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300">Menunggu Verifikasi</Badge>
+      case "DISETUJUI":
+        return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">Disetujui</Badge>
+      case "DITOLAK":
+        return <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">Ditolak</Badge>
+      case "PERLU_PERBAIKAN":
+        return <Badge variant="outline" className="bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300">Perlu Perbaikan</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  // Render loading skeleton
+  const renderSkeleton = () => (
+    <div className="space-y-6">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Card key={i} className="animate-pulse">
+          <CardContent className="p-6">
+            <div className="flex justify-between">
+              <div className="space-y-3 w-3/4">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-6 w-1/2" />
+                <div className="flex space-x-2 pt-2">
+                  <Skeleton className="h-5 w-20" />
+                  <Skeleton className="h-5 w-24" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-20 rounded-md" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+
+  // Main render
+  return (
+    <DashboardLayout>
+      <div className="container mx-auto p-4 max-w-7xl">
+        <Tabs defaultValue="semua" value={currentTab} onValueChange={setCurrentTab} className="mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+            <TabsList className="mb-2 md:mb-0">
+              <TabsTrigger value="semua">Semua Usulan</TabsTrigger>
+              <TabsTrigger value="perlu-verifikasi">Perlu Verifikasi</TabsTrigger>
+            </TabsList>
+            
+            <div className="flex flex-col md:flex-row gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  placeholder="Cari nama, NIP, atau unit kerja..."
+                  className="pl-9 w-full md:w-[250px]"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                />
+              </div>
+              
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Status</SelectItem>
+                  <SelectItem value="DIAJUKAN">Diajukan</SelectItem>
+                  <SelectItem value="DIPROSES_OPERATOR">Diproses</SelectItem>
+                  <SelectItem value="DIKEMBALIKAN_OPERATOR">Dikembalikan</SelectItem>
+                  <SelectItem value="DISETUJUI_OPERATOR">Disetujui</SelectItem>
+                  <SelectItem value="DITOLAK_OPERATOR">Ditolak</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Tabs>
+        
+        {!showDetail ? (
+          <>
+            {isLoading ? (
+              renderSkeleton()
+            ) : filteredProposals.length === 0 ? (
+              <Card className="bg-white dark:bg-slate-900">
+                <CardContent className="flex flex-col items-center justify-center p-10">
+                  <AlertTriangle className="h-12 w-12 text-yellow-500" />
+                  <h3 className="mt-4 text-lg font-semibold text-center">Tidak Ada Usulan</h3>
+                  <p className="mt-2 text-center text-gray-500 dark:text-gray-400 max-w-md">
+                    Tidak ada usulan yang sesuai dengan filter atau pencarian saat ini.
+                  </p>
+                  {(searchTerm || statusFilter !== "all" || currentTab !== "semua") && (
+                    <Button 
+                      variant="outline" 
+                      className="mt-4"
+                      onClick={() => {
+                        setSearchTerm("");
+                        setStatusFilter("all");
+                        setCurrentTab("semua");
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Reset Filter
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {filteredProposals.map((proposal) => (
+                  <motion.div
+                    key={proposal.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Card className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {getStatusBadge(proposal.status)}
+                              <span className="text-xs text-gray-500">
+                                Diajukan {formatDistance(new Date(proposal.createdAt), new Date(), { addSuffix: true, locale: id })}
+                              </span>
+                            </div>
+                            
+                            <h3 className="font-semibold text-lg">
+                              {proposal.pegawai.name}
+                            </h3>
+                            
+                            <div className="text-sm text-gray-700 dark:text-gray-300">
+                              <p>NIP: {proposal.pegawai.nip}</p>
+                              <p>Unit Kerja: {proposal.pegawai.unitKerja.nama}</p>
+                              <p>Wilayah: {formatWilayahForDisplay(proposal.pegawai.wilayah)}</p>
+                            </div>
+                            
+                            <div className="mt-2">
+                              <div className="flex items-center">
+                                <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2 w-full max-w-xs">
+                                  <div 
+                                    className={`rounded-full h-2 ${
+                                      proposal.documentProgress.percentage === 100 
+                                        ? 'bg-green-500 dark:bg-green-600' 
+                                        : 'bg-blue-500 dark:bg-blue-600'
+                                    }`}
+                                    style={{ width: `${proposal.documentProgress.percentage}%` }}
+                                  />
+                                </div>
+                                <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">
+                                  {proposal.documentProgress.completed}/{proposal.documentProgress.total} dokumen
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col gap-2">
+                            <Button 
+                              variant="secondary" 
+                              className="w-full"
+                              onClick={() => viewProposalDetail(proposal)}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Lihat Detail
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div>
+            {loadingDetail ? (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex justify-center items-center py-10">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p>Memuat detail usulan...</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : selectedProposal ? (
+              <div className="space-y-6">
+                <div className="flex items-center">
+                  <Button variant="ghost" onClick={handleBack} className="mr-2">
+                    <ChevronLeft className="h-5 w-5 mr-1" />
+                    Kembali
+                  </Button>
+                  <h2 className="text-2xl font-bold">Detail Usulan</h2>
+                </div>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-xl">{selectedProposal.pegawai.name}</CardTitle>
+                        <p className="text-sm text-gray-500 mt-1">NIP: {selectedProposal.pegawai.nip}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {getStatusBadge(selectedProposal.status)}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Detail Pegawai</h3>
+                          <div className="mt-2 space-y-2">
+                            <div className="grid grid-cols-2 gap-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Jabatan:</span>
+                              <span className="text-sm font-medium">{selectedProposal.pegawai.jabatan}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Golongan:</span>
+                              <span className="text-sm font-medium">{selectedProposal.pegawai.golongan}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Unit Kerja:</span>
+                              <span className="text-sm font-medium">{selectedProposal.pegawai.unitKerja.nama}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Wilayah:</span>
+                              <span className="text-sm font-medium">{formatWilayahForDisplay(selectedProposal.pegawai.wilayah)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Detail Usulan</h3>
+                          <div className="mt-2 space-y-2">
+                            <div className="grid grid-cols-2 gap-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Periode:</span>
+                              <span className="text-sm font-medium">{selectedProposal.periode}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Tanggal Diajukan:</span>
+                              <span className="text-sm font-medium">
+                                {format(new Date(selectedProposal.createdAt), 'dd MMM yyyy, HH:mm', { locale: id })}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Pembaruan Terakhir:</span>
+                              <span className="text-sm font-medium">
+                                {format(new Date(selectedProposal.updatedAt), 'dd MMM yyyy, HH:mm', { locale: id })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Progres Dokumen</h3>
+                        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium">
+                              {selectedProposal.documentProgress.percentage}% Lengkap
+                            </span>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {selectedProposal.documentProgress.completed}/{selectedProposal.documentProgress.total} dokumen
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                            <div 
+                              className={`h-2.5 rounded-full ${
+                                selectedProposal.documentProgress.percentage === 100 
+                                  ? 'bg-green-500 dark:bg-green-600' 
+                                  : 'bg-blue-500 dark:bg-blue-600'
+                              }`}
+                              style={{ width: `${selectedProposal.documentProgress.percentage}%` }}
+                            ></div>
+                          </div>
+                          
+                          <div className="flex justify-between mt-4">
+                            <div className="text-center">
+                              <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400 block">
+                                {selectedProposal.documentProgress.pending}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">Menunggu</span>
+                            </div>
+                            <div className="text-center">
+                              <span className="text-sm font-medium text-green-600 dark:text-green-400 block">
+                                {selectedProposal.documentProgress.completed}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">Disetujui</span>
+                            </div>
+                            <div className="text-center">
+                              <span className="text-sm font-medium text-red-600 dark:text-red-400 block">
+                                {selectedProposal.documentProgress.rejected}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">Ditolak</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4 space-y-2">
+                          {selectedProposal.documentProgress.pending > 0 && (
+                            <Button 
+                              className="w-full" 
+                              onClick={() => verifyAllDocuments(selectedProposal.id)}
+                              disabled={isSubmitting}
+                            >
+                              {isSubmitting ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Memproses...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Verifikasi Semua Dokumen
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          
+                          {(selectedProposal.status === "DIAJUKAN" || selectedProposal.status === "DIPROSES_OPERATOR") && (
+                            <div className="flex gap-2 flex-col sm:flex-row">
+                              <Button 
+                                variant="default" 
+                                className="flex-1" 
+                                onClick={() => openActionModal(selectedProposal, "approve")}
+                                disabled={selectedProposal.documentProgress.pending > 0}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Setujui Usulan
+                              </Button>
+                              <Button 
+                                variant="destructive" 
+                                className="flex-1" 
+                                onClick={() => openActionModal(selectedProposal, "reject")}
+                              >
+                                <X className="h-4 w-4 mr-2" />
+                                Tolak Usulan
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-8">
+                      <h3 className="text-lg font-semibold mb-4">Daftar Dokumen</h3>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Dokumen</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Waktu Unggah</TableHead>
+                              <TableHead>Catatan</TableHead>
+                              <TableHead className="text-right">Aksi</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedProposal.documents.map((doc) => (
+                              <TableRow key={doc.id}>
+                                <TableCell>
+                                  <div>
+                                    <span className="font-medium">{doc.requirement.name}</span>
+                                    <p className="text-sm text-gray-500 truncate max-w-xs">{doc.fileName}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{getDocumentStatusBadge(doc.status)}</TableCell>
+                                <TableCell className="text-sm">
+                                  {format(new Date(doc.uploadedAt), 'dd MMM yyyy, HH:mm', { locale: id })}
+                                </TableCell>
+                                <TableCell>
+                                  {doc.catatan && (
+                                    <div className="bg-white dark:bg-gray-800 p-2 rounded mb-2 text-sm dark:text-gray-300">
+                                      <span className="font-medium">Catatan:</span> {doc.catatan}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex flex-wrap gap-2 justify-end">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      asChild
+                                    >
+                                      <a href={`/api/documents/${doc.id}/preview`} target="_blank" rel="noreferrer">
+                                        <FileText className="h-4 w-4 mr-1" />
+                                        Lihat
+                                      </a>
+                                    </Button>
+                                    
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      asChild
+                                    >
+                                      <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noreferrer">
+                                        <Download className="h-4 w-4 mr-1" />
+                                        Unduh
+                                      </a>
+                                    </Button>
+                                    
+                                    {doc.status === "MENUNGGU_VERIFIKASI" && (
+                                      <>
+                                        <Button 
+                                          variant="default" 
+                                          size="sm"
+                                          onClick={() => handleDocumentAction(doc, "approve")}
+                                        >
+                                          <CheckCircle className="h-4 w-4 mr-1" />
+                                          Verifikasi
+                                        </Button>
+                                        
+                                        <Button 
+                                          variant="destructive" 
+                                          size="sm"
+                                          onClick={() => handleDocumentAction(doc, "reject")}
+                                        >
+                                          <X className="h-4 w-4 mr-1" />
+                                          Tolak
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-6 text-center">
+                  <p className="py-8">Data usulan tidak ditemukan</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+        
+        {/* Action Modal */}
+        <Dialog open={showActionModal} onOpenChange={setShowActionModal}>
+          <DialogContent className="max-w-md">
+            {selectedProposal && actionType && (
+              <div>
+                <DialogHeader>
+                  <DialogTitle>
+                    {actionType === "approve" ? "Setujui Usulan" : 
+                     actionType === "reject" ? "Tolak Usulan" : 
+                     actionType === "process" ? "Proses Usulan" : "Teruskan Usulan"}
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <div className="py-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    {actionType === "approve" ? "Anda akan menyetujui usulan ini untuk diproses lebih lanjut." : 
+                     actionType === "reject" ? "Anda akan menolak usulan ini." : 
+                     actionType === "process" ? "Usulan akan diproses." : "Usulan akan diteruskan."}
+                  </p>
+                  
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium mb-2">Detail Usulan</h4>
+                    <p className="text-sm mb-1">
+                      <span className="font-medium">Nama:</span> {selectedProposal.pegawai.name}
+                    </p>
+                    <p className="text-sm mb-1">
+                      <span className="font-medium">NIP:</span> {selectedProposal.pegawai.nip}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Unit Kerja:</span> {selectedProposal.pegawai.unitKerja.nama}
+                    </p>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1" htmlFor="actionNote">
+                      Catatan {actionType === "reject" ? "(Wajib)" : "(Opsional)"}
+                    </label>
+                    <Textarea
+                      id="actionNote"
+                      placeholder="Tambahkan catatan..."
+                      value={actionNote}
+                      onChange={(e) => setActionNote(e.target.value)}
+                      rows={4}
+                      required={actionType === "reject"}
+                    />
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowActionModal(false)}>
+                    Batal
+                  </Button>
+                  <Button 
+                    variant={actionType === "reject" ? "destructive" : "default"}
+                    onClick={submitAction} 
+                    disabled={isSubmitting || (actionType === "reject" && !actionNote.trim())}
+                  >
+                    {isSubmitting ? 'Memproses...' : 'Konfirmasi'}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+        
+        {/* Document Action Modal */}
+        <Dialog open={showDocumentActionModal} onOpenChange={setShowDocumentActionModal}>
+          <DialogContent className="max-w-md">
+            {selectedDocument && documentActionType && (
+              <div>
+                <DialogHeader>
+                  <DialogTitle>
+                    {documentActionType === "approve" ? "Verifikasi Dokumen" : "Tolak Dokumen"}
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <div className="py-4">
+                  <p className="mb-4">
+                    {documentActionType === "approve" 
+                      ? "Anda akan memverifikasi dokumen ini sebagai valid." 
+                      : "Anda akan menolak dokumen ini karena tidak memenuhi syarat."}
+                  </p>
+                  
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium mb-1">Dokumen</h4>
+                    <p className="text-gray-700">{selectedDocument.requirement.name}</p>
+                    <p className="text-sm text-gray-500">{selectedDocument.fileName}</p>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1" htmlFor="docNote">
+                      Catatan {documentActionType === "reject" ? "(Wajib)" : "(Opsional)"}
+                    </label>
+                    <Textarea
+                      id="docNote"
+                      placeholder="Tambahkan catatan..."
+                      value={documentNote}
+                      onChange={(e) => setDocumentNote(e.target.value)}
+                      rows={4}
+                      required={documentActionType === "reject"}
+                    />
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowDocumentActionModal(false)}>
+                    Batal
+                  </Button>
+                  <Button 
+                    variant={documentActionType === "reject" ? "destructive" : "default"}
+                    onClick={submitDocumentAction} 
+                    disabled={isVerifyingDocument || (documentActionType === "reject" && !documentNote.trim())}
+                  >
+                    {isVerifyingDocument ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Memproses...
+                      </>
+                    ) : (
+                      'Konfirmasi'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DashboardLayout>
+  )
+}

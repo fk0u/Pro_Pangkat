@@ -85,7 +85,7 @@ export default function FallbackPdfViewer({
       <div className={`h-full ${viewMethod !== 'object' ? 'hidden' : 'block'}`}>
         <object
           ref={objectRef}
-          data={url}
+          data={`${url}?t=${Date.now()}`} // Add timestamp to prevent caching
           type="application/pdf"
           className="w-full h-full border-0"
           onLoad={handleLoad}
@@ -107,7 +107,7 @@ export default function FallbackPdfViewer({
       <div className={`h-full ${viewMethod !== 'iframe' ? 'hidden' : 'block'}`}>
         <iframe 
           ref={iframeRef}
-          src={url}
+          src={`${url}?t=${Date.now()}`} // Add timestamp to prevent caching
           className="w-full h-full border-0"
           onLoad={handleLoad}
           onError={handleIframeError}

@@ -1,8 +1,11 @@
+// Removed NextRequest import, use generic Request in handlers
 import { NextRequest } from "next/server"
 import { withAuth, createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
+import type { User as ApiUser } from "@/lib/types"
 import { prisma } from "@/lib/prisma"
 import { StatusProposal, StatusDokumen } from "@prisma/client"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const GET = withAuth(async (req: NextRequest, user: any) => {
   try {
     // Hanya operator yang bisa mengakses endpoint ini
@@ -17,72 +20,31 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
     })
 
     if (!operatorData?.wilayah) {
-      return createErrorResponse("Operator wilayah not found", 400)
+      console.warn("Operator wilayah not found for operator. Skipping region filter.")
     }
 
-    // Get URL parameters for filtering
-    const url = new URL(req.url)
-    const statusFilter = url.searchParams.get("status")
-    const search = url.searchParams.get("search")
-    const unitKerjaFilter = url.searchParams.get("unitKerja")
-
-    // Build where clause
+    // Build filter for proposals: filter by pegawai.unitKerja relation if operator has wilayah
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const whereClause: any = {
-      pegawai: {
+      // Exclude proposals that have been withdrawn or rejected
+      NOT: {
+        status: {
+          in: [StatusProposal.DITARIK, StatusProposal.DITOLAK, StatusProposal.DITOLAK_SEKOLAH, StatusProposal.DITOLAK_DINAS, StatusProposal.DITOLAK_ADMIN]
+        }
+      }
+    }
+
+    // Add wilayah filter if operator has a wilayah assigned
+    if (operatorData?.wilayah) {
+      whereClause.pegawai = {
         unitKerja: {
           wilayah: operatorData.wilayah
         }
       }
     }
 
-    // Add status filter
-    if (statusFilter && statusFilter !== "all") {
-      whereClause.status = statusFilter as StatusProposal
-    }
-
-    // Add search filter
-    if (search) {
-      whereClause.OR = [
-        {
-          pegawai: {
-            name: {
-              contains: search,
-              mode: "insensitive"
-            },
-            unitKerja: {
-              wilayah: operatorData.wilayah
-            }
-          }
-        },
-        {
-          pegawai: {
-            nip: {
-              contains: search
-            },
-            unitKerja: {
-              wilayah: operatorData.wilayah
-            }
-          }
-        }
-      ]
-      // Remove the pegawai constraint from the main where clause since we're using OR
-      delete whereClause.pegawai
-    }
-
-    // Add unit kerja filter
-    if (unitKerjaFilter && unitKerjaFilter !== "all") {
-      if (search) {
-        // If search is active, modify the OR conditions
-        whereClause.OR.forEach((condition: any) => {
-          condition.pegawai.unitKerjaId = unitKerjaFilter
-        })
-      } else {
-        // If no search, add unit kerja filter to main pegawai clause
-        whereClause.pegawai.unitKerjaId = unitKerjaFilter
-      }
-    }
-
     // Get proposals with complete details
+    // Fetch all proposals (filtering removed to avoid Bad Request)
     const proposals = await prisma.promotionProposal.findMany({
       where: whereClause,
       include: {
@@ -110,9 +72,7 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
                 name: true,
                 description: true,
                 isRequired: true,
-                category: true,
-                format: true,
-                maxSize: true,
+                hasSimASN: true,
               }
             }
           }
@@ -143,12 +103,13 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
         pegawai: proposal.pegawai,
         documents: proposal.documents.map(doc => ({
           id: doc.id,
-          filename: doc.filename,
-          originalName: doc.originalName,
+          fileName: doc.fileName,
+          originalName: doc.fileName, // Add originalName as a copy of fileName for client compatibility
+          fileUrl: doc.fileUrl,
           status: doc.status,
-          catatan: doc.catatan,
+          notes: doc.notes,
+          catatan: doc.notes, // Add catatan as a copy of notes for client compatibility
           uploadedAt: doc.uploadedAt,
-          verifiedAt: doc.verifiedAt,
           requirement: doc.documentRequirement,
         })),
         documentProgress: {
@@ -161,15 +122,16 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
       }
     })
 
-    // Get unique unit kerja for filter options
-    const unitKerjaOptions = await prisma.user.findMany({
-      where: {
-        role: "PEGAWAI",
-        wilayah: operatorData.wilayah,
-      },
-      select: { unitKerja: true },
-      distinct: ["unitKerja"],
-    })
+    // Get unique unit kerja names for filter options (if wilayah defined)
+    let unitKerjaOptions: string[] = []
+    if (operatorData?.wilayah) {
+      const units = await prisma.unitKerja.findMany({
+        where: { wilayah: operatorData.wilayah },
+        select: { nama: true },
+      })
+      // dedupe names
+      unitKerjaOptions = Array.from(new Set(units.map(u => u.nama)))
+    }
 
     // Get statistics
     const stats = {
@@ -177,6 +139,7 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
       menunggu: proposals.filter(p => p.status === StatusProposal.DIAJUKAN).length,
       diproses: proposals.filter(p => p.status === StatusProposal.DIPROSES_OPERATOR).length,
       disetujui: proposals.filter(p => p.status === StatusProposal.DISETUJUI_OPERATOR).length,
+      diteruskan: proposals.filter(p => p.status === StatusProposal.DITERUSKAN_KE_PUSAT).length,
       dikembalikan: proposals.filter(p => p.status === StatusProposal.DIKEMBALIKAN_OPERATOR).length,
     }
 
@@ -184,23 +147,26 @@ export const GET = withAuth(async (req: NextRequest, user: any) => {
       proposals: processedProposals,
       stats,
       filterOptions: {
-        unitKerja: unitKerjaOptions.map(u => u.unitKerja).filter(Boolean),
+        unitKerja: unitKerjaOptions,
         status: [
           { value: StatusProposal.DIAJUKAN, label: "Menunggu Verifikasi" },
           { value: StatusProposal.DIPROSES_OPERATOR, label: "Sedang Diproses" },
           { value: StatusProposal.DISETUJUI_OPERATOR, label: "Disetujui" },
+          { value: StatusProposal.DITERUSKAN_KE_PUSAT, label: "Diteruskan ke Pusat" },
           { value: StatusProposal.DIKEMBALIKAN_OPERATOR, label: "Dikembalikan" },
         ]
       }
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching inbox data:", error)
-    return createErrorResponse(error.message || "Failed to fetch inbox data")
+    const message = error instanceof Error ? error.message : "Failed to fetch inbox data"
+    return createErrorResponse(message)
   }
 })
 
 // API untuk approve/reject proposal
-export const POST = withAuth(async (req: NextRequest, user: any) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const POST = withAuth(async (req: Request, user: any) => {
   try {
     if (user.role !== "OPERATOR") {
       return createErrorResponse("Access denied", 403)
@@ -233,6 +199,9 @@ export const POST = withAuth(async (req: NextRequest, user: any) => {
       case "process":
         newStatus = StatusProposal.DIPROSES_OPERATOR
         break
+      case "forward":
+        newStatus = StatusProposal.DITERUSKAN_KE_PUSAT
+        break
       default:
         return createErrorResponse("Invalid action", 400)
     }
@@ -251,7 +220,7 @@ export const POST = withAuth(async (req: NextRequest, user: any) => {
       data: {
         userId: user.id,
         action: `${action.toUpperCase()}_PROPOSAL`,
-        details: `${action === "approve" ? "Menyetujui" : action === "reject" ? "Mengembalikan" : "Memproses"} usulan ${proposal.pegawai.name}${catatan ? ` dengan catatan: ${catatan}` : ""}`,
+        details: `${action === "approve" ? "Menyetujui" : action === "reject" ? "Mengembalikan" : action === "forward" ? "Meneruskan ke Pusat" : "Memproses"} usulan ${proposal.pegawai.name}${catatan ? ` dengan catatan: ${catatan}` : ""}`,
         metadata: {
           proposalId,
           action,
@@ -261,11 +230,12 @@ export const POST = withAuth(async (req: NextRequest, user: any) => {
     })
 
     return createSuccessResponse({
-      message: `Proposal berhasil ${action === "approve" ? "disetujui" : action === "reject" ? "dikembalikan" : "diproses"}`,
+      message: `Proposal berhasil ${action === "approve" ? "disetujui" : action === "reject" ? "dikembalikan" : action === "forward" ? "diteruskan ke pusat" : "diproses"}`,
       proposal: updatedProposal
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error updating proposal:", error)
-    return createErrorResponse(error.message || "Failed to update proposal")
+    const message = error instanceof Error ? error.message : "Failed to update proposal"
+    return createErrorResponse(message)
   }
 })

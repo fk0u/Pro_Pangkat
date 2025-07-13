@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, CalendarDays, Clock, RefreshCw, Loader2, Info } from "lucide-react"
+import { Calendar, CalendarDays, Clock, RefreshCw, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { motion } from "framer-motion"
+// import { motion } from "framer-motion" // unused
 
 interface TimelineData {
   id: string;
@@ -42,12 +42,15 @@ export default function TimelineView({ userType, showControls = true }: Timeline
         setLoading(true)
       }
       
-      // Try the specific endpoint for the user type first
-      let endpoint = `/api/${userType}/timeline`
-      
-      // For operator-sekolah, we have a specific endpoint
-      if (userType === "operator-sekolah") {
+      // Determine endpoint based on user type
+      let endpoint: string
+      if (userType === "operator") {
+        // Operator uses shared timeline events
+        endpoint = "/api/shared/timeline"
+      } else if (userType === "operator-sekolah") {
         endpoint = "/api/operator-sekolah/timeline"
+      } else {
+        endpoint = `/api/${userType}/timeline`
       }
       
       let response = await fetch(endpoint)
@@ -69,21 +72,25 @@ export default function TimelineView({ userType, showControls = true }: Timeline
       console.log("Timeline API response:", data)
       
       // Handle different response formats
-      if (data && Array.isArray(data.data)) {
-        // Standard API format from createSuccessResponse
-        setTimelines(data.data)
-      } else if (data && Array.isArray(data.timelines)) {
-        // Format used by some specific endpoints
-        setTimelines(data.timelines)
-      } else if (data && Array.isArray(data)) {
-        // Direct array format
-        setTimelines(data)
-      } else if (data && data.success === true && data.data === null) {
-        // Success but no data
-        setTimelines([])
-      } else {
-        console.error("Unexpected API response format:", data)
-        throw new Error("Invalid data format from API")
+      // Handle different response formats
+      if (data && data.success === true) {
+        // Operator-specific format
+        if (data.data?.timelineData && Array.isArray(data.data.timelineData)) {
+          setTimelines(data.data.timelineData)
+        // Shared API format
+        } else if (data.data?.data && Array.isArray(data.data.data)) {
+          setTimelines(data.data.data)
+        // Legacy array formats
+        } else if (Array.isArray(data.data)) {
+          setTimelines(data.data)
+        } else if (Array.isArray(data.timelines)) {
+          setTimelines(data.timelines)
+        } else if (data.data === null) {
+          setTimelines([])
+        } else {
+          console.error("Unexpected API response format:", data)
+          throw new Error("Invalid data format from API")
+        }
       }
     } catch (error) {
       console.error("Error fetching timelines:", error)
@@ -97,7 +104,7 @@ export default function TimelineView({ userType, showControls = true }: Timeline
         setLoading(false)
       }
     }
-  }, [toast])
+  }, [toast, userType])
 
   useEffect(() => {
     fetchTimelines()
