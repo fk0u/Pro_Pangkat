@@ -58,15 +58,30 @@ async function main() {
 
   // 3. Create Operator Sekolah Users
   const operatorSekolah = [
-    { name: "Operator SMA Negeri 1 Samarinda", nip: "801111111111111111", unitKerja: "SMA Negeri 1 Samarinda", wilayah: Wilayah.SAMARINDA },
-    { name: "Operator SMA Negeri 2 Balikpapan", nip: "802222222222222222", unitKerja: "SMA Negeri 2 Balikpapan", wilayah: Wilayah.BALIKPAPAN_PPU },
-    { name: "Operator SMK Negeri 1 Bontang", nip: "803333333333333333", unitKerja: "SMK Negeri 1 Bontang", wilayah: Wilayah.KUTIM_BONTANG },
-    { name: "Operator SMA Negeri 1 Tenggarong", nip: "804444444444444444", unitKerja: "SMA Negeri 1 Tenggarong", wilayah: Wilayah.KUKAR },
-    { name: "Operator SMK Negeri 1 Sendawar", nip: "805555555555555555", unitKerja: "SMK Negeri 1 Sendawar", wilayah: Wilayah.KUBAR_MAHULU },
-    { name: "Operator SMA Negeri 1 Tanah Grogot", nip: "806666666666666666", unitKerja: "SMA Negeri 1 Tanah Grogot", wilayah: Wilayah.PASER },
-    { name: "Operator SMK Negeri 1 Tanjung Redeb", nip: "807777777777777777", unitKerja: "SMK Negeri 1 Tanjung Redeb", wilayah: Wilayah.BERAU },
+    { name: "Operator SMA Negeri 1 Samarinda", nip: "801111111111111111", sekolah: "SMA Negeri 1 Samarinda", wilayah: Wilayah.SAMARINDA, jenjang: "SMA" },
+    { name: "Operator SMA Negeri 2 Balikpapan", nip: "802222222222222222", sekolah: "SMA Negeri 2 Balikpapan", wilayah: Wilayah.BALIKPAPAN_PPU, jenjang: "SMA" },
+    { name: "Operator SMK Negeri 1 Bontang", nip: "803333333333333333", sekolah: "SMK Negeri 1 Bontang", wilayah: Wilayah.KUTIM_BONTANG, jenjang: "SMK" },
+    { name: "Operator SMA Negeri 1 Tenggarong", nip: "804444444444444444", sekolah: "SMA Negeri 1 Tenggarong", wilayah: Wilayah.KUKAR, jenjang: "SMA" },
+    { name: "Operator SMK Negeri 1 Sendawar", nip: "805555555555555555", sekolah: "SMK Negeri 1 Sendawar", wilayah: Wilayah.KUBAR_MAHULU, jenjang: "SMK" },
+    { name: "Operator SMA Negeri 1 Tanah Grogot", nip: "806666666666666666", sekolah: "SMA Negeri 1 Tanah Grogot", wilayah: Wilayah.PASER, jenjang: "SMA" },
+    { name: "Operator SMK Negeri 1 Tanjung Redeb", nip: "807777777777777777", sekolah: "SMK Negeri 1 Tanjung Redeb", wilayah: Wilayah.BERAU, jenjang: "SMK" },
   ]
 
+  // Create UnitKerja records first
+  for (const opSekolah of operatorSekolah) {
+    await prisma.unitKerja.upsert({
+      where: { nama: opSekolah.sekolah },
+      update: {},
+      create: {
+        nama: opSekolah.sekolah,
+        jenjang: opSekolah.jenjang,
+        wilayah: opSekolah.wilayah,
+      },
+    })
+  }
+  console.log("School UnitKerja records created.")
+
+  // Now create the operator accounts with proper UnitKerja relations
   for (const opSekolah of operatorSekolah) {
     const hashedPassword = await bcrypt.hash(opSekolah.nip, salt)
     await prisma.user.upsert({
@@ -78,9 +93,13 @@ async function main() {
         email: `operator.sekolah.${opSekolah.wilayah.toLowerCase().replace('_', '.')}@propangkat.dev`,
         password: hashedPassword,
         role: Role.OPERATOR_SEKOLAH,
-        unitKerja: opSekolah.unitKerja,
         wilayah: opSekolah.wilayah,
         mustChangePassword: true,
+        unitKerja: {
+          connect: {
+            nama: opSekolah.sekolah
+          }
+        },
       },
     })
   }
@@ -96,8 +115,12 @@ async function main() {
       tmtGolongan: new Date("2020-04-01"),
       jabatan: "Kepala Sekolah",
       jenisJabatan: "Struktural",
-      unitKerja: "SMA Negeri 1 Samarinda",
       wilayah: Wilayah.SAMARINDA,
+      unitKerja: {
+        connect: {
+          nama: "SMA Negeri 1 Samarinda"
+        }
+      },
     },
     {
       nip: "198702152011012002",
@@ -107,8 +130,12 @@ async function main() {
       tmtGolongan: new Date("2021-04-01"),
       jabatan: "Guru Madya",
       jenisJabatan: "Guru",
-      unitKerja: "SMA Negeri 2 Balikpapan",
       wilayah: Wilayah.BALIKPAPAN_PPU,
+      unitKerja: {
+        connect: {
+          nama: "SMA Negeri 2 Balikpapan"
+        }
+      },
     },
     {
       nip: "199203152015031003",
@@ -118,8 +145,12 @@ async function main() {
       tmtGolongan: new Date("2022-04-01"),
       jabatan: "Wakil Kepala Sekolah",
       jenisJabatan: "Struktural",
-      unitKerja: "SMK Negeri 1 Bontang",
       wilayah: Wilayah.KUTIM_BONTANG,
+      unitKerja: {
+        connect: {
+          nama: "SMK Negeri 1 Bontang"
+        }
+      },
     },
     {
       nip: "198012102008012004",
@@ -129,8 +160,12 @@ async function main() {
       tmtGolongan: new Date("2019-04-01"),
       jabatan: "Guru Muda",
       jenisJabatan: "Guru",
-      unitKerja: "SMA Negeri 1 Tenggarong",
       wilayah: Wilayah.KUKAR,
+      unitKerja: {
+        connect: {
+          nama: "SMA Negeri 1 Tenggarong"
+        }
+      },
     },
     {
       nip: "199505202020121005",
@@ -140,8 +175,12 @@ async function main() {
       tmtGolongan: new Date("2020-12-01"),
       jabatan: "Operator Sekolah",
       jenisJabatan: "Fungsional",
-      unitKerja: "SMK Negeri 1 Sendawar",
       wilayah: Wilayah.KUBAR_MAHULU,
+      unitKerja: {
+        connect: {
+          nama: "SMK Negeri 1 Sendawar"
+        }
+      },
     }
   ]
 

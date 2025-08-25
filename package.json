@@ -53,6 +53,7 @@
     "@radix-ui/react-tooltip": "latest",
     "@react-pdf/renderer": "^4.3.0",
     "autoprefixer": "^10.4.20",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

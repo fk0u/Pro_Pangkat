@@ -1,13 +1,51 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role, Wilayah, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+interface UnitKerjaData {
+  nama: string;
+  jenjang: string;
+  wilayah: Wilayah;
+}
+
+interface PegawaiData {
+  nip: string;
+  name: string;
+  password: string;
+  role: Role;
+  unitKerja: string;
+  wilayah: Wilayah;
+  golongan: string;
+  jabatan: string;
+  jenisJabatan: string;
+  email: string;
+  phone: string;
+  address?: string;
+}
 
 async function seedUnitKerjaData() {
   console.log('🌱 Seeding Unit Kerja data untuk testing halaman manajemen...');
 
   try {
     const salt = await bcrypt.genSalt(10);
+
+    // Create Unit Kerja records first
+    const unitKerjaData = [
+      // SAMARINDA - SD
+      { nama: 'SD Negeri 001 Samarinda', jenjang: 'SD', wilayah: 'SAMARINDA' },
+      { nama: 'SD Negeri 002 Samarinda', jenjang: 'SD', wilayah: 'SAMARINDA' },
+      // Add more unit kerja records as needed
+    ];
+
+    for (const unitKerja of unitKerjaData) {
+      await prisma.unitKerja.upsert({
+        where: { nama: unitKerja.nama },
+        update: {},
+        create: unitKerja,
+      });
+    }
+    console.log('Created Unit Kerja records');
 
     // Data pegawai untuk berbagai unit kerja di berbagai wilayah
     const pegawaiData = [
@@ -17,7 +55,7 @@ async function seedUnitKerjaData() {
         name: 'Budi Santoso',
         password: await bcrypt.hash('19850101201901001', salt),
         role: 'PEGAWAI',
-        unitKerja: 'SD Negeri 001 Samarinda',
+        unitKerjaNama: 'SD Negeri 001 Samarinda',
         wilayah: 'SAMARINDA',
         golongan: 'III/c',
         jabatan: 'Guru Madya',
@@ -226,19 +264,66 @@ async function seedUnitKerjaData() {
       }
     ];
 
+    // Create Unit Kerja records first
+    const unitKerjas = [...new Set(pegawaiData.map(p => ({
+      nama: p.unitKerja,
+      jenjang: p.unitKerja?.split(' ')[0] ?? '', // Extract SD, SMP, SMA, SMK from the name
+      wilayah: p.wilayah as Wilayah
+    })))];
+
+    for (const uk of unitKerjas) {
+      if (uk.nama) {
+        await prisma.unitKerja.upsert({
+          where: { nama: uk.nama },
+          update: {},
+          create: {
+            nama: uk.nama,
+            jenjang: uk.jenjang,
+            wilayah: uk.wilayah
+          }
+        });
+      }
+    }
+    console.log(`Created ${unitKerjas.length} Unit Kerja records`);
+
     // Seed pegawai data
     let createdCount = 0;
     for (const pegawai of pegawaiData) {
       try {
-        await prisma.user.upsert({
-          where: { nip: pegawai.nip },
-          update: pegawai,
-          create: pegawai
-        });
-        createdCount++;
-        console.log(`✅ Created/updated: ${pegawai.name} (${pegawai.unitKerja})`);
+        const { unitKerja: unitKerjaNama, ...userData } = pegawai;
+        if (unitKerjaNama) {
+          await prisma.user.upsert({
+            where: { nip: pegawai.nip },
+            update: {
+              ...userData,
+              role: userData.role as Role,
+              wilayah: userData.wilayah as Wilayah,
+              unitKerja: {
+                connect: {
+                  nama: unitKerjaNama
+                }
+              }
+            },
+            create: {
+              ...userData,
+              role: userData.role as Role,
+              wilayah: userData.wilayah as Wilayah,
+              unitKerja: {
+                connect: {
+                  nama: unitKerjaNama
+                }
+              }
+            }
+          });
+          createdCount++;
+          console.log(`✅ Created/updated: ${pegawai.name} (${unitKerjaNama})`);
+        }
       } catch (error) {
-        console.log(`⚠️  Skipped ${pegawai.name}: ${error.message}`);
+        if (error instanceof Error) {
+          console.log(`⚠️  Skipped ${pegawai.name}: ${error.message}`);
+        } else {
+          console.log(`⚠️  Skipped ${pegawai.name}: Unknown error`);
+        }
       }
     }
 
@@ -248,34 +333,52 @@ async function seedUnitKerjaData() {
 
     // Show unit kerja statistics
     const unitKerjaSummary = await prisma.user.groupBy({
-      by: ['unitKerja'],
+      by: ['unitKerjaId'],
       where: { 
-        role: 'PEGAWAI',
-        unitKerja: { not: null }
+        role: Role.PEGAWAI,
+        unitKerjaId: { not: null }
       },
-      _count: { id: true }
+      _count: {
+        _all: true
+      }
+    });
+
+    // Get unit kerja details to show names instead of IDs
+    const validUnitKerjaIds = unitKerjaSummary
+      .map(s => s.unitKerjaId)
+      .filter((id): id is string => id !== null);
+
+    const unitKerjaDetails = await prisma.unitKerja.findMany({
+      where: {
+        id: {
+          in: validUnitKerjaIds
+        }
+      }
     });
 
     console.log(`\n🏢 Unit Kerja Summary (${unitKerjaSummary.length} unique units):`);
     unitKerjaSummary
-      .sort((a, b) => b._count.id - a._count.id)
+      .sort((a, b) => (b._count._all || 0) - (a._count._all || 0))
       .forEach(unit => {
-        console.log(`   ${unit.unitKerja}: ${unit._count.id} pegawai`);
+        const ukName = unitKerjaDetails.find(uk => uk.id === unit.unitKerjaId)?.nama || 'Unknown';
+        console.log(`   ${ukName}: ${unit._count._all} pegawai`);
       });
 
     // Show wilayah distribution
     const wilayahSummary = await prisma.user.groupBy({
       by: ['wilayah'],
       where: { 
-        role: 'PEGAWAI',
+        role: Role.PEGAWAI,
         wilayah: { not: null }
       },
-      _count: { id: true }
+      _count: {
+        _all: true
+      }
     });
 
     console.log(`\n🗺️  Wilayah Distribution:`);
     wilayahSummary.forEach(wilayah => {
-      console.log(`   ${wilayah.wilayah}: ${wilayah._count.id} pegawai`);
+      console.log(`   ${wilayah.wilayah}: ${wilayah._count._all} pegawai`);
     });
 
   } catch (error) {
