@@ -18,6 +18,34 @@ yarn-error.log*
 
 # env files
 .env*
+!.env.example
+
+# secrets and credentials
+*.pem
+*.key
+*.p12
+*.crt
+*.cer
+*.jks
+
+# local tooling artifacts
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+
+# test and coverage outputs
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# runtime logs
+logs/
+*.log
+
+# uploads and generated documents
+uploads/*
+!uploads/.gitkeep
 
 # vercel
 .vercel

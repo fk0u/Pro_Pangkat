@@ -1,62 +1,113 @@
 # ProPangkat
 
-Repository aplikasi ProPangkat (Next.js + Prisma + PostgreSQL) dengan struktur dokumentasi yang dirapikan untuk mendukung metode Waterfall.
+ProPangkat adalah platform manajemen usulan kenaikan pangkat dengan fokus pada alur verifikasi lintas peran (Pegawai, Operator, Operator Sekolah, dan Admin), keamanan login berlapis, serta operasi backend yang siap dipantau.
 
-## Struktur Repository
+## Highlights
 
-- `app/`, `components/`, `lib/`, `hooks/`, `types/`: source code runtime.
-- `prisma/`: schema dan migrasi database.
-- `scripts/`: script setup, seed, dan utilitas.
-- `docs/waterfall/`: artefak resmi per fase Waterfall.
-- `docs/reports/`: laporan implementasi/fix historis.
-- `archive/snapshots/`: file backup non-runtime (`.new`, `.bak`, `.backup`).
+- Next.js 16 + React 19 + Prisma + PostgreSQL.
+- API docs berbasis OpenAPI + Swagger UI.
+- Database explorer internal untuk inspeksi struktur data.
+- Runtime monitor CLI + Web UI (CPU, RAM, Disk, status proses, log).
+- Auth hardening: captcha signed token, throttle login/captcha, policy password lebih kuat.
 
-## Waterfall Workspace
+## Tech Stack
 
-- Inisiasi: `docs/waterfall/01-initiation/`
-- Requirement: `docs/waterfall/02-requirements/`
-- Design: `docs/waterfall/03-design/`
-- Implementation: `docs/waterfall/04-implementation/`
-- Verification: `docs/waterfall/05-verification/`
-- Maintenance: `docs/waterfall/06-maintenance/`
+- Frontend: Next.js App Router, React, Tailwind CSS.
+- Backend: Next.js Route Handlers, Prisma ORM.
+- Database: PostgreSQL.
+- Auth Session: iron-session.
+- Tooling: TypeScript, Turbo, Prisma Migrate/Seed.
 
-Lihat panduan lengkap di `docs/waterfall/README.md` dan kebijakan struktur di `docs/governance/repository-structure.md`.
+## Quick Start
 
-## Menjalankan Proyek
+1. Install dependencies
 
-1. Install dependency:
-	- `npm install`
-2. Generate Prisma Client:
-	- `npx prisma generate`
-3. Jalankan aplikasi:
-	- `npm run dev`
-4. Build produksi:
-	- `npm run build`
-5. Jalankan mode operasional (app + monitor CLI + web UI monitor):
-	- `npm run start`
+```bash
+npm install
+```
 
-## API Dan Database Docs
+2. Copy template environment
+
+```bash
+cp .env.example .env
+```
+
+3. Generate prisma client
+
+```bash
+npm run db:generate
+```
+
+4. Recover local database (migration + seed + health check)
+
+```bash
+npm run db:recover
+```
+
+5. Run development server
+
+```bash
+npm run dev
+```
+
+## Runtime & Operations
+
+- Production monitor mode:
+
+```bash
+npm run start
+```
+
+- Development monitor mode:
+
+```bash
+npm run start:devops
+```
+
+- Runtime monitor web UI: `http://localhost:3030`
+- App URL: `http://localhost:3000`
+
+## Database Commands
+
+- Generate Prisma client: `npm run db:generate`
+- Reset database: `npm run db:reset`
+- Seed baseline data: `npm run db:seed`
+- Seed sample data: `npm run db:sample`
+- Health check: `npm run db:health`
+- Full recovery pipeline: `npm run db:recover`
+- Prisma Studio: `npm run db:studio`
+
+## API & Data Docs
 
 - Swagger UI: `/api-docs`
 - OpenAPI JSON: `/openapi.json`
-- Database Web UI (ringkasan tabel): `/database-ui`
-- Prisma Studio (data editor): jalankan `npm run db:studio` lalu buka URL yang diberikan Prisma Studio.
+- Database UI: `/database-ui`
 
-## Runtime Monitor (CLI + Web UI)
+## Repository Map
 
-- Command utama: `npm run start`
-- App URL: `http://localhost:3000`
-- Monitor Web UI: `http://localhost:3030`
-- Endpoint monitor:
-	- `GET /api/metrics`
-	- `GET /api/logs?limit=250`
+- `app/`, `components/`, `lib/`, `hooks/`, `types/`: source code.
+- `prisma/`: schema dan migrations.
+- `scripts/`: automation, seed, operational utilities.
+- `docs/waterfall/`: artefak delivery berbasis fase waterfall.
+- `docs/reports/`: laporan implementasi historis.
+- `archive/snapshots/`: snapshot non-runtime.
 
-Catatan:
-- Default mode start adalah production (`next start`), pastikan sudah `npm run build`.
-- Untuk mode development dengan monitor: `npm run start:devops`.
+## Security Notes
 
-## Catatan Operasional
+- File environment sensitif tidak di-commit.
+- Lihat `.env.example` untuk template konfigurasi aman.
+- Endpoint debug dibatasi di environment non-development.
+- Token captcha dan password reset memakai signed/hashed strategy.
 
-- Gunakan `archive/snapshots/` untuk menyimpan file eksperimen atau backup.
-- Hindari menyimpan file snapshot di folder source aktif.
-- Simpan bukti uji dan sign-off di fase verification sebelum rilis.
+## Documentation Index
+
+- Waterfall docs: `docs/waterfall/README.md`
+- Governance: `docs/governance/repository-structure.md`
+- Recovery playbook: `docs/waterfall/06-maintenance/2026-03-18-backend-database-recovery-playbook-done.md`
+- Delivery summary (Linear-ready): `docs/2026-03-18-linear-delivery-summary.md`
+
+## Contributor Guidance
+
+- Gunakan `.env.example` sebagai acuan lokal.
+- Jangan commit data sensitif, kredensial, atau secret key.
+- Untuk isu keamanan, buat laporan internal maintainer-only.
