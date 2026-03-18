@@ -29,12 +29,23 @@ export interface SessionData {
 }
 
 export async function getSession() {
+  const cookieStore = await cookies()
+
   try {
-    // getSessionPassword ensures we always have a valid password now
-    const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+    const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
     return session;
   } catch (error) {
-    console.error("Error creating session:", error);
-    throw error;
+    console.error("Error creating session, attempting cookie reset:", error);
+
+    try {
+      cookieStore.delete(sessionOptions.cookieName)
+    } catch (deleteError) {
+      console.error("Failed deleting invalid session cookie:", deleteError)
+    }
+
+    const recoveredSession = await getIronSession<SessionData>(cookieStore, sessionOptions)
+    recoveredSession.isLoggedIn = false
+    recoveredSession.user = undefined
+    return recoveredSession
   }
 }

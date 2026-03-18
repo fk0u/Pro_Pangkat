@@ -12,9 +12,10 @@ interface CaptchaProps {
   onChange: (value: string) => void
   disabled?: boolean
   onHashChange?: (hash: string | null) => void
+  refreshNonce?: number
 }
 
-export function EnhancedCaptcha({ onValidate, value, onChange, disabled = false, onHashChange }: CaptchaProps) {
+export function EnhancedCaptcha({ onValidate, value, onChange, disabled = false, onHashChange, refreshNonce }: CaptchaProps) {
   const {
     image,
     hash,
@@ -43,6 +44,13 @@ export function EnhancedCaptcha({ onValidate, value, onChange, disabled = false,
     // Use the onChange prop to keep the parent component's state in sync
     // This ensures two-way binding between this component and its parent
   }, [value, updateValue, onChange]);
+
+  // Allow parent to force-refresh captcha (e.g., after one-time token has been consumed by login attempt).
+  useEffect(() => {
+    if (typeof refreshNonce === "number" && refreshNonce > 0) {
+      generateCaptcha()
+    }
+  }, [refreshNonce, generateCaptcha])
 
   return (
     <div className="space-y-3">
@@ -73,6 +81,7 @@ export function EnhancedCaptcha({ onValidate, value, onChange, disabled = false,
             onClick={generateCaptcha}
             disabled={loading || disabled}
             className="p-2 h-8 w-8"
+            aria-label="Refresh captcha"
           >
             <RefreshCw className="h-4 w-4" />
           </Button>

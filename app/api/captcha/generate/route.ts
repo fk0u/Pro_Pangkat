@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCanvas } from "canvas";
-import crypto from "crypto";
+import { issueCaptchaToken } from "@/lib/captcha";
+import { consumeThrottle, getClientIpFromRequestHeaders } from "@/lib/request-throttle";
 
 // Function to generate a random string
 function generateRandomString(length = 5) {
@@ -67,25 +68,36 @@ function generateCaptchaImage(text: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIpFromRequestHeaders(req.headers)
+    const throttle = consumeThrottle(`captcha:generate:${ip}`, 30, 60_000)
+
+    if (!throttle.allowed) {
+      const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)
+      return NextResponse.json(
+        { error: `Too many captcha requests. Retry in ${retryAfterSeconds}s.` },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfterSeconds),
+          },
+        }
+      )
+    }
+
     // Generate a random captcha text
     const captchaText = generateRandomString(5);
-
-    console.log("🔐 CAPTCHA GENERATED 🔐");
-    console.log("Generated captcha text:", captchaText);
 
     // Generate a captcha image
     const captchaImage = generateCaptchaImage(captchaText);
 
-    // Hash the captcha text
-    const hash = crypto.createHash("sha256").update(captchaText).digest("hex");
-    console.log("Generated hash:", hash);
+    // Create signed one-time challenge token (not reversible like plain hash)
+    const challengeToken = issueCaptchaToken(captchaText);
 
-    // Return the captcha image and hash (not the text itself)
+    // Return challenge token for backward compatibility on existing client state naming
     return NextResponse.json({
       image: captchaImage,
-      hash: hash,
-      // For development debugging only
-      // debug_text: captchaText, 
+      hash: challengeToken,
+      challengeToken,
     });
   } catch (error) {
     console.error("Error generating captcha:", error);

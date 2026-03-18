@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { hashPassword } from "@/lib/password"
 import { z } from "zod"
+import { consumeThrottle, getClientIpFromRequestHeaders } from "@/lib/request-throttle"
+import { issuePasswordResetToken, consumePasswordResetToken } from "@/lib/password-reset"
+import { validatePasswordPolicy } from "@/lib/password-policy"
+import { isDevelopmentRuntime } from "@/lib/runtime-guards"
 
 const forgotPasswordSchema = z.object({
   nip: z.string().min(18, "NIP harus 18 digit").max(18, "NIP harus 18 digit"),
@@ -12,10 +16,18 @@ const forgotPasswordSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const requestLike = req as Request
+    const ip = getClientIpFromRequestHeaders(requestLike.headers)
     const body = await req.json()
     const { step } = body
 
     if (step === "request") {
+      const throttle = consumeThrottle(`forgot:request:${ip}`, 8, 10 * 60_000)
+      if (!throttle.allowed) {
+        const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)
+        return NextResponse.json({ message: `Terlalu banyak request. Coba lagi dalam ${retryAfterSeconds} detik.` }, { status: 429 })
+      }
+
       // Step 1: Request token
       const parsed = forgotPasswordSchema.pick({ nip: true, email: true }).safeParse(body)
       
@@ -33,20 +45,31 @@ export async function POST(req: Request) {
         },
       })
 
-      if (!user) {
-        return NextResponse.json({ message: "NIP atau email tidak ditemukan" }, { status: 404 })
+      // Always return the same message to avoid account enumeration.
+      const genericResponse: Record<string, unknown> = {
+        message: "Jika data valid, token reset telah dikirim.",
       }
 
-      // In real app, send email with token here
-      // For demo, we'll just return success
-      
-      return NextResponse.json({ 
-        message: "Token berhasil dikirim ke email Anda",
-        // In demo, we tell the token for testing
-        demoToken: "123456" 
-      }, { status: 200 })
+      if (!user) {
+        return NextResponse.json(genericResponse, { status: 200 })
+      }
+
+      const resetToken = issuePasswordResetToken(nip)
+
+      // In development only, expose token for local testing.
+      if (isDevelopmentRuntime()) {
+        genericResponse.demoToken = resetToken
+      }
+
+      return NextResponse.json(genericResponse, { status: 200 })
 
     } else if (step === "reset") {
+      const throttle = consumeThrottle(`forgot:reset:${ip}`, 10, 10 * 60_000)
+      if (!throttle.allowed) {
+        const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)
+        return NextResponse.json({ message: `Terlalu banyak percobaan reset. Coba lagi dalam ${retryAfterSeconds} detik.` }, { status: 429 })
+      }
+
       // Step 2: Reset password with token
       const parsed = forgotPasswordSchema.pick({ 
         nip: true, 
@@ -60,13 +83,13 @@ export async function POST(req: Request) {
 
       const { nip, token, newPassword } = parsed.data
 
-      // In demo, accept token "123456"
-      if (token !== "123456") {
+      const tokenResult = consumePasswordResetToken(nip, token || "")
+      if (!tokenResult.valid) {
         return NextResponse.json({ message: "Token tidak valid" }, { status: 400 })
       }
 
-      if (!newPassword || newPassword.length < 6) {
-        return NextResponse.json({ message: "Password minimal 6 karakter" }, { status: 400 })
+      if (!newPassword) {
+        return NextResponse.json({ message: "Password baru wajib diisi" }, { status: 400 })
       }
 
       // Find user by NIP
@@ -76,6 +99,14 @@ export async function POST(req: Request) {
 
       if (!user) {
         return NextResponse.json({ message: "User tidak ditemukan" }, { status: 404 })
+      }
+
+      const policy = validatePasswordPolicy(newPassword, {
+        disallowValues: [user.nip, user.name],
+      })
+
+      if (!policy.valid) {
+        return NextResponse.json({ message: policy.errors.join('. ') }, { status: 400 })
       }
 
       // Hash new password

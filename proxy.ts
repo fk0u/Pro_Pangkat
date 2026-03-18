@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { isDevelopmentRuntime, debugEndpointBlockedResponse } from '@/lib/runtime-guards'
 
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/api/debug') && !isDevelopmentRuntime()) {
+    return debugEndpointBlockedResponse()
+  }
+
   const response = NextResponse.next()
 
   // Add CORS headers

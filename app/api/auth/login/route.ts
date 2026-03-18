@@ -4,76 +4,85 @@ import { comparePasswords } from "@/lib/password"
 import { getSession } from "@/lib/auth"
 import { z } from "zod"
 import { logLogin } from "@/lib/activity-logger"
+import { verifyCaptchaToken } from "@/lib/captcha"
+import { canAttemptLogin, getRateLimitKey, registerFailedLogin, resetLoginRateLimit } from "@/lib/auth-rate-limit"
+import { consumeThrottle, getClientIpFromRequestHeaders } from "@/lib/request-throttle"
 
 const loginSchema = z.object({
   nip: z.string().min(1, "NIP is required"),
   password: z.string().min(1, "Password is required"),
-  captchaValue: z.string().optional().default(""), // Membuat captchaValue menjadi opsional
+  captchaValue: z.string().min(1, "Captcha is required"),
   captchaHash: z.string().optional(),
+  captchaToken: z.string().optional(),
   userType: z.enum(["pegawai", "operator", "admin", "operator-sekolah"]).optional(),
 })
 
+const userTypeToRole: Record<string, string> = {
+  pegawai: "PEGAWAI",
+  operator: "OPERATOR",
+  admin: "ADMIN",
+  "operator-sekolah": "OPERATOR_SEKOLAH",
+}
+
+function getClientIp(req: NextRequest) {
+  return getClientIpFromRequestHeaders(req.headers)
+}
+
 export async function POST(req: NextRequest) {
   try {
-    console.log("Starting login process...")
+    const ip = getClientIp(req)
+    const requestThrottle = consumeThrottle(`login:request:${ip}`, 20, 60_000)
+    if (!requestThrottle.allowed) {
+      const retryAfterSeconds = Math.ceil(requestThrottle.retryAfterMs / 1000)
+      return NextResponse.json({
+        message: `Terlalu banyak request login. Coba lagi dalam ${retryAfterSeconds} detik.`,
+      }, {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSeconds),
+        },
+      })
+    }
+
     const body = await req.json()
-    console.log("Request body:", JSON.stringify(body, null, 2))
-    
-    // Log detail validasi
-    console.log("Validation check - NIP:", !!body.nip)
-    console.log("Validation check - Password:", !!body.password)
-    console.log("Validation check - captchaValue:", body.captchaValue)
-    console.log("Validation check - captchaHash:", body.captchaHash)
-    console.log("Validation check - userType:", body.userType)
-    
     const parsed = loginSchema.safeParse(body)
 
     if (!parsed.success) {
-      console.error("Invalid login input:", parsed.error.format())
       return NextResponse.json({ 
         message: "Invalid input", 
         details: parsed.error.format() 
       }, { status: 400 })
     }
 
-    const { nip, password, captchaValue, captchaHash } = parsed.data
-    
-    // Verify captcha if hash is provided
-    if (captchaHash) {
-      try {
-        const captchaResponse = await fetch(new URL("/api/captcha/verify", req.url).toString(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: captchaValue, hash: captchaHash }),
-        });
-        
-        if (!captchaResponse.ok) {
-          return NextResponse.json({ message: "CAPTCHA verification failed" }, { status: 400 })
-        }
-        
-        const captchaResult = await captchaResponse.json();
-        if (!captchaResult.valid) {
-          return NextResponse.json({ message: "CAPTCHA tidak valid" }, { status: 400 })
-        }
-      } catch (error) {
-        console.error("Captcha verification error:", error);
-        // Continue with login if captcha verification fails due to server error
-        // This is a fallback in case the captcha service is down
-        console.log("Continuing login process despite captcha error");
-      }
+    const { nip, password, captchaValue, captchaHash, captchaToken, userType } = parsed.data
+
+    const token = captchaToken || captchaHash
+    if (!token) {
+      return NextResponse.json({ message: "CAPTCHA token wajib diisi" }, { status: 400 })
     }
-    console.log("Login attempt for NIP:", nip)
+
+    const captchaResult = verifyCaptchaToken(captchaValue, token, { consume: true })
+    if (!captchaResult.valid) {
+      return NextResponse.json({ message: "CAPTCHA tidak valid atau kedaluwarsa" }, { status: 400 })
+    }
     
-    // Get IP and user agent for logging
-    const ip = req.headers.get('x-forwarded-for') || req.ip || 'unknown'
     const userAgent = req.headers.get('user-agent') || 'unknown'
+    const rateKey = getRateLimitKey(ip, nip)
+
+    const rateLimitState = canAttemptLogin(rateKey)
+    if (!rateLimitState.allowed) {
+      const retryAfterSeconds = Math.ceil(rateLimitState.retryAfterMs / 1000)
+      return NextResponse.json({
+        message: `Terlalu banyak percobaan login. Coba lagi dalam ${retryAfterSeconds} detik.`,
+      }, { status: 429 })
+    }
 
     const user = await prisma.user.findUnique({
       where: { nip },
     })
 
     if (!user) {
-      // Log failed login attempt
+      registerFailedLogin(rateKey)
       await logLogin('unknown', false, { 
         nip, 
         reason: 'User not found',
@@ -87,7 +96,7 @@ export async function POST(req: NextRequest) {
     const isPasswordValid = await comparePasswords(password, user.password)
 
     if (!isPasswordValid) {
-      // Log failed login attempt
+      registerFailedLogin(rateKey)
       await logLogin(user.id, false, { 
         nip: user.nip, 
         reason: 'Invalid password',
@@ -98,7 +107,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "NIP atau password salah" }, { status: 401 })
     }
 
-    // Log successful login (disabled temporarily)
+    if (userType) {
+      const expectedRole = userTypeToRole[userType]
+      if (expectedRole && user.role !== expectedRole) {
+        registerFailedLogin(rateKey)
+        await logLogin(user.id, false, {
+          nip: user.nip,
+          reason: 'Role mismatch',
+          expectedRole,
+          actualRole: user.role,
+          ip,
+          userAgent,
+        })
+
+        return NextResponse.json({ message: "Akun tidak sesuai dengan jenis login yang dipilih" }, { status: 403 })
+      }
+    }
+
+    resetLoginRateLimit(rateKey)
+
     try {
       await logLogin(user.id, true, {
         nip: user.nip,
@@ -113,44 +140,18 @@ export async function POST(req: NextRequest) {
       // Continue even if logging fails
     }
 
-    // Skip session handling to test if that's causing the issue
-    try {
-      console.log("Creating session...")
-      const session = await getSession()
-      console.log("Session created successfully")
-      
-      session.user = {
-        id: user.id,
-        nip: user.nip,
-        name: user.name,
-        role: user.role,
-        mustChangePassword: user.mustChangePassword,
-      }
-      session.isLoggedIn = true
-      
-      console.log("Session data set, attempting to save...")
-      await session.save()
-      console.log("Session saved successfully")
-      
-      return NextResponse.json({ user: session.user }, { status: 200 })
-    } catch (sessionError) {
-      console.error("Session error:", sessionError)
-      
-      // Return success without session to test if session is causing the error
-      console.log("Returning user data without session due to session error")
-      const userData = {
-        id: user.id,
-        nip: user.nip,
-        name: user.name,
-        role: user.role,
-        mustChangePassword: user.mustChangePassword
-      }
-      
-      return NextResponse.json({ 
-        user: userData, 
-        warning: "Session handling failed, using temporary login" 
-      }, { status: 200 })
+    const session = await getSession()
+    session.user = {
+      id: user.id,
+      nip: user.nip,
+      name: user.name,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
     }
+    session.isLoggedIn = true
+    await session.save()
+
+    return NextResponse.json({ user: session.user }, { status: 200 })
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })

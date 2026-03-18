@@ -30,6 +30,7 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
   const [password, setPassword] = useState("")
   const [captcha, setCaptcha] = useState("")
   const [captchaHash, setCaptchaHash] = useState<string | null>(null)
+  const [captchaRefreshNonce, setCaptchaRefreshNonce] = useState(0)
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -53,6 +54,13 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
   const { toast } = useToast()
   const router = useRouter()
 
+  const resetCaptchaChallenge = () => {
+    setCaptcha("")
+    setCaptchaHash(null)
+    setIsCaptchaValid(false)
+    setCaptchaRefreshNonce((prev) => prev + 1)
+  }
+
   // Form validation
   useEffect(() => {
     const validateForm = () => {
@@ -74,7 +82,9 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
 
       if (!captcha.trim()) {
         newErrors.captcha = "CAPTCHA tidak boleh kosong"
-      } else if (captcha !== "DEMO12345" && !isCaptchaValid) {
+      } else if (captcha.trim().length !== 5) {
+        newErrors.captcha = "CAPTCHA harus 5 karakter"
+      } else if (!isCaptchaValid) {
         newErrors.captcha = "CAPTCHA tidak valid"
       }
 
@@ -105,12 +115,11 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
       const payload = {
         nip,
         password,
-        captchaValue: captcha || "DEMO12345",
-        captchaHash: captchaHash || "not-needed-for-demo",
+        captchaValue: captcha,
+        captchaHash,
+        captchaToken: captchaHash,
         userType,
       }
-      
-      console.log("Sending login payload:", JSON.stringify(payload, null, 2))
       
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -119,12 +128,12 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
         },
         body: JSON.stringify(payload),
       })
-
-      console.log("Login response status:", response.status)
       const data = await response.json()
-      console.log("Login response:", data)
 
       if (!response.ok) {
+        // Captcha token is one-time and consumed by login verification.
+        // Always rotate captcha challenge on failed attempt.
+        resetCaptchaChallenge()
         throw new Error(data.message || "Login gagal" + (data.details ? `: ${JSON.stringify(data.details)}` : ""))
       }
 
@@ -387,6 +396,7 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
               onChange={setCaptcha} 
               disabled={isLoading}
               onHashChange={setCaptchaHash}
+              refreshNonce={captchaRefreshNonce}
             />
             {!captchaHash && (
               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { hashPassword } from "@/lib/password"
 import { z } from "zod"
+import { validatePasswordPolicy } from "@/lib/password-policy"
 
 const passwordSchema = z
   .object({
@@ -29,6 +30,15 @@ export async function POST(req: Request) {
     }
 
     const { newPassword } = parsed.data
+
+    const policy = validatePasswordPolicy(newPassword, {
+      disallowValues: [session.user.nip, session.user.name],
+    })
+
+    if (!policy.valid) {
+      return NextResponse.json({ errors: { newPassword: policy.errors } }, { status: 400 })
+    }
+
     const hashedPassword = await hashPassword(newPassword)
 
     await prisma.user.update({

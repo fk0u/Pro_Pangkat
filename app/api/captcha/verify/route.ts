@@ -1,35 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCaptchaToken } from "@/lib/captcha";
+import { consumeThrottle, getClientIpFromRequestHeaders } from "@/lib/request-throttle";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIpFromRequestHeaders(req.headers)
+    const throttle = consumeThrottle(`captcha:verify:${ip}`, 60, 60_000)
+
+    if (!throttle.allowed) {
+      const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)
+      return NextResponse.json(
+        { valid: false, message: `Too many verification attempts. Retry in ${retryAfterSeconds}s.` },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(retryAfterSeconds),
+          },
+        }
+      )
+    }
+
     const body = await req.json();
 
-    // Get user input and expected hash from request
-    const { input, hash } = body;
+    // Support both legacy (hash) and new (challengeToken) payload names.
+    const input = String(body?.input || "").trim();
+    const token = String(body?.challengeToken || body?.hash || "").trim();
 
-    console.log("Captcha verify received:", { input, hash });
-
-    if (!input || !hash) {
-      console.log("Missing input or hash");
+    if (!input || !token) {
       return NextResponse.json(
-        { valid: false, message: "Missing input or hash" },
+        { valid: false, message: "Missing input or challenge token" },
         { status: 400 }
       );
     }
 
-    // Verify the input against the hash
-    const crypto = require('crypto');
-    const inputHash = crypto.createHash("sha256").update(input.toUpperCase()).digest("hex");
+    const result = verifyCaptchaToken(input, token, { consume: false });
 
-    const isValid = inputHash === hash;
-
-    console.log("CAPTCHA verification:");
-    console.log("- Input:", input);
-    console.log("- Input Hash:", inputHash);
-    console.log("- Expected Hash:", hash);
-    console.log("- Valid?", isValid);
-
-    if (isValid) {
+    if (result.valid) {
       return NextResponse.json({
         valid: true,
         message: "CAPTCHA valid"
@@ -37,7 +43,8 @@ export async function POST(req: NextRequest) {
     } else {
       return NextResponse.json({
         valid: false,
-        message: "CAPTCHA invalid"
+        message: "CAPTCHA invalid",
+        reason: result.reason,
       });
     }
   } catch (error) {

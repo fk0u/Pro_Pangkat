@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { Prisma } from '@prisma/client'
+import { validatePasswordPolicy } from '@/lib/password-policy'
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,13 +23,6 @@ export async function POST(request: NextRequest) {
     if (!currentPassword || !newPassword || !confirmPassword) {
       return NextResponse.json(
         { message: 'Semua field wajib diisi' },
-        { status: 400 }
-      )
-    }
-
-    if (newPassword.length < 6) {
-      return NextResponse.json(
-        { message: 'Password baru minimal 6 karakter' },
         { status: 400 }
       )
     }
@@ -53,6 +47,17 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 })
+    }
+
+    const policy = validatePasswordPolicy(newPassword, {
+      disallowValues: [user.name, session.user.nip],
+    })
+
+    if (!policy.valid) {
+      return NextResponse.json(
+        { message: policy.errors.join('. ') },
+        { status: 400 }
+      )
     }
 
     // Verifikasi password saat ini

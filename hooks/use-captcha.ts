@@ -26,7 +26,6 @@ export const useCaptcha = () => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     
     try {
-      console.log("Generating new captcha...");
       const response = await fetch("/api/captcha/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,16 +36,6 @@ export const useCaptcha = () => {
       }
       
       const data = await response.json();
-      console.log("Captcha generation response:", { 
-        imageExists: !!data.image, 
-        hashExists: !!data.hash,
-        debug_text: data.debug_text // Only for development 
-      });
-      
-      console.log("📣 DEVELOPER NOTE 📣");
-      console.log("For testing purposes, you can use: dEm12");
-      console.log(`Actual captcha code: ${data.debug_text || "Not available"}`);
-      console.log("Both will work during development");
       
       setState((prev) => ({
         ...prev,
@@ -76,11 +65,10 @@ export const useCaptcha = () => {
     setState((prev) => ({ ...prev, isValidating: true }));
     
     try {
-      console.log("Verifying captcha:", value, "with hash:", state.hash);
       const response = await fetch("/api/captcha/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: value, hash: state.hash }),
+        body: JSON.stringify({ input: value, challengeToken: state.hash }),
       });
       
       if (!response.ok) {
@@ -88,7 +76,6 @@ export const useCaptcha = () => {
       }
       
       const data = await response.json();
-      console.log("Captcha verification result:", data);
       
       setState((prev) => ({
         ...prev,
@@ -121,7 +108,7 @@ export const useCaptcha = () => {
 
   // Verify captcha when value changes
   useEffect(() => {
-    if (state.value.length === 5) { // Only verify when we have enough characters
+    if (state.value.length === 5) {
       verifyCaptcha(state.value);
     } else if (state.value.length < 5) {
       setState(prev => ({ ...prev, isValid: false }));
