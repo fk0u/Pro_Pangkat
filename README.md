@@ -33,6 +33,13 @@ Lihat panduan lengkap di `docs/waterfall/README.md` dan kebijakan struktur di `d
 4. Build produksi:
 	- `npm run build`
 
+## API Dan Database Docs
+
+- Swagger UI: `/api-docs`
+- OpenAPI JSON: `/openapi.json`
+- Database Web UI (ringkasan tabel): `/database-ui`
+- Prisma Studio (data editor): jalankan `npm run db:studio` lalu buka URL yang diberikan Prisma Studio.
+
 ## Catatan Operasional
 
 - Gunakan `archive/snapshots/` untuk menyimpan file eksperimen atau backup.
