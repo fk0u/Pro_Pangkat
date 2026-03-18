@@ -1,0 +1,23 @@
+"bruno-collection/Auth/POST Login.bru"
+  b5a4ba5fe8eb2bef 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "40d98256a52929dc9faed41a799a0f592b383268",
+  "prompts": {
+    "b5a4ba5fe8eb2bef": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "76a67fd7-409d-45a3-8f81-1cdd618cd554",
+        "model": "copilot/gemini-3.1-pro-preview"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 9
+    }
+  }
+}
