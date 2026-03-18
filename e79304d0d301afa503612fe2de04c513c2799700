@@ -1,0 +1,55 @@
+app/api/captcha/generate/route.ts
+  b5a4ba5fe8eb2bef 3,93-94,96,99-100
+hooks/use-captcha.ts
+  b5a4ba5fe8eb2bef 71
+lib/captcha.ts
+  b5a4ba5fe8eb2bef 1-104
+lib/password-reset.ts
+  b5a4ba5fe8eb2bef 1-57
+lib/auth-rate-limit.ts
+  b5a4ba5fe8eb2bef 1-76
+app/api/captcha/verify/route.ts
+  b5a4ba5fe8eb2bef 2,25-29,31,38,46-47
+lib/password-policy.ts
+  b5a4ba5fe8eb2bef 1-48
+app/api/users/change-password/route.ts
+  b5a4ba5fe8eb2bef 6,33-41
+app/api/operator-sekolah/change-password/route.ts
+  b5a4ba5fe8eb2bef 6,52-60
+app/api/auth/login/route.ts
+  b5a4ba5fe8eb2bef 7-9,14,16,20-30,33-46,57-61,63,65-66,70-78,85,99,110-124,127-128,143,151-154
+components/enhanced-captcha.tsx
+  b5a4ba5fe8eb2bef 84
+lib/auth.ts
+  b5a4ba5fe8eb2bef 32-33,35,38-49
+proxy.ts
+  b5a4ba5fe8eb2bef 3,6-9
+app/api/auth/forgot-password/route.ts
+  b5a4ba5fe8eb2bef 5-8,19-20,25-30,48-51,54,57-62,64,67-72,86-87,91-92,104-109
+lib/request-throttle.ts
+  b5a4ba5fe8eb2bef 1-70
+lib/runtime-guards.ts
+  b5a4ba5fe8eb2bef 1-11
+components/compact-login-form.tsx
+  b5a4ba5fe8eb2bef 87,119-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "e79304d0d301afa503612fe2de04c513c2799700",
+  "prompts": {
+    "b5a4ba5fe8eb2bef": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "76a67fd7-409d-45a3-8f81-1cdd618cd554",
+        "model": "copilot/gpt-5.3-codex"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 1192,
+      "total_deletions": 792,
+      "accepted_lines": 630,
+      "overriden_lines": 3
+    }
+  }
+}
