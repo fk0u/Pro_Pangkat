@@ -1,0 +1,23 @@
+README.md
+  b5a4ba5fe8eb2bef 36-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "43456af36fd72bb4ecc4eb901ee87b067b89615b",
+  "prompts": {
+    "b5a4ba5fe8eb2bef": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "76a67fd7-409d-45a3-8f81-1cdd618cd554",
+        "model": "copilot/gpt-5.3-codex"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 40,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}
