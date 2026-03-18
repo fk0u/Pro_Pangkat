@@ -1,0 +1,27 @@
+PROPRIETARY AND CONFIDENTIAL
+
+Copyright (C) 2026 PT. Kilasan Otak Ulet dan Eksplorasi (KILOUX).
+All Rights Reserved.
+
+1. IDENTITAS KEPEMILIKAN
+Perangkat lunak ini (selanjutnya disebut "Perangkat Lunak" atau "Sistem ProPangkat") beserta seluruh dokumentasi, kode sumber (source code), desain antarmuka, aset visual, dan basis data terkait adalah hak milik eksklusif dari PT. Kilasan Otak Ulet dan Eksplorasi (KILOUX).
+
+2. KLIEN EKSKLUSIF
+Perangkat Lunak ini dikembangkan secara spesifik dan eksklusif untuk diimplementasikan dan digunakan oleh:
+- Dinas Pendidikan dan Kebudayaan Provinsi Kalimantan Timur
+- Badan Kepegawaian Daerah Provinsi Kalimantan Timur
+
+3. LARANGAN KERAS
+Sistem ini bersifat CLOSED SOURCE / PRIVATE. Tanpa izin tertulis yang sah dan ditandatangani oleh manajemen eksekutif KILOUX, dilarang keras bagi pihak manapun untuk:
+a. Mengunduh, menyalin, menggandakan, atau mereproduksi Perangkat Lunak.
+b. Mendistribusikan, mempublikasikan, mentransmisikan, atau membocorkan (leak) Perangkat Lunak ke ranah publik atau pihak ketiga.
+c. Melakukan rekayasa balik (reverse engineering), dekompilasi, disassembly, atau modifikasi terhadap Perangkat Lunak dan arsitektur database-nya.
+d. Menggunakan Perangkat Lunak ini untuk kepentingan komersial maupun non-komersial di luar ruang lingkup perjanjian kerja dengan klien yang telah disebutkan.
+
+4. KONSEKUENSI HUKUM
+Pelanggaran terhadap ketentuan lisensi tertutup ini merupakan tindak kejahatan kekayaan intelektual korporasi dan akan dituntut secara perdata maupun pidana sesuai dengan instrumen hukum yang berlaku, termasuk namun tidak terbatas pada:
+- Undang-Undang Republik Indonesia Nomor 28 Tahun 2014 tentang Hak Cipta.
+- Undang-Undang Republik Indonesia Nomor 11 Tahun 2008 tentang Informasi dan Transaksi Elektronik sebagaimana telah diubah dengan Undang-Undang Nomor 19 Tahun 2016.
+- Perjanjian Kerahasiaan (Non-Disclosure Agreement / NDA) dan kesepakatan kerja yang mengikat individu terkait baik internal maupun eksternal.
+
+Peringatan: Akses terhadap lingkungan sistem, repository, serta basis data ini dipantau secara ketat. Segala bentuk akses tidak sah (unauthorized access) atau duplikasi data akan direkam dan diserahkan kepada pihak yang berwajib sebagai bentuk barang bukti.
