@@ -1,0 +1,11 @@
+meta {
+  name: GET Path
+  type: http
+  seq: 145
+}
+
+get {
+  url: {{baseUrl}}/api/uploads/[[...path]]
+  body: none
+  auth: none
+}
