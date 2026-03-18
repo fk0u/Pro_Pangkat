@@ -1,0 +1,96 @@
+app/connection-refused/page.tsx
+  b5a4ba5fe8eb2bef 1-50
+app/api/operator/unit-kerja/export/route.ts
+  ed7f187df19f7ff5 2
+docs/waterfall/06-maintenance/maintenance-log.md
+  b5a4ba5fe8eb2bef 1-20
+docs/waterfall/04-implementation/implementation-plan.md
+  b5a4ba5fe8eb2bef 1-21
+app/api/operator/proposals/[id]/route.ts
+  ed7f187df19f7ff5 3
+app/page.tsx
+  b5a4ba5fe8eb2bef 3-4,7,9-11,13-15,17
+archive/README.md
+  b5a4ba5fe8eb2bef 1-11
+docs/waterfall/05-verification/test-plan.md
+  b5a4ba5fe8eb2bef 1-24
+docs/waterfall/03-design/api-documentation.md
+  b5a4ba5fe8eb2bef 1-33
+docs/waterfall/03-design/database-documentation.md
+  b5a4ba5fe8eb2bef 1-36
+docs/waterfall/01-initiation/project-charter.md
+  b5a4ba5fe8eb2bef 1-27
+app/api/operator/proposals/[id]/documents/[documentId]/route.ts
+  ed7f187df19f7ff5 3
+app/operator/timeline/page.tsx
+  b5a4ba5fe8eb2bef 470-471
+docs/waterfall/README.md
+  b5a4ba5fe8eb2bef 1-20
+app/operator/reports/page.tsx
+  b5a4ba5fe8eb2bef 51-57,104-105,133-134,232,236,247,378,409
+docs/governance/repository-structure.md
+  b5a4ba5fe8eb2bef 1-19
+app/database-ui/page.tsx
+  b5a4ba5fe8eb2bef 1-135
+docs/README.md
+  b5a4ba5fe8eb2bef 2-17
+docs/waterfall/02-requirements/software-requirements-specification.md
+  b5a4ba5fe8eb2bef 1-27
+components/home-page-client.tsx
+  b5a4ba5fe8eb2bef 1-55
+docs/waterfall/03-design/solution-design.md
+  b5a4ba5fe8eb2bef 1-27
+README.md
+  b5a4ba5fe8eb2bef 1-40
+app/api/timeline/route.ts
+  b5a4ba5fe8eb2bef 3
+components/ui/sidebar.tsx
+  b5a4ba5fe8eb2bef 653-654
+app/api-docs/page.tsx
+  b5a4ba5fe8eb2bef 1-21
+app/api/admin/users/import/route.ts
+  b5a4ba5fe8eb2bef 5
+app/api/database-explorer/route.ts
+  b5a4ba5fe8eb2bef 1-69
+app/error.tsx
+  b5a4ba5fe8eb2bef 24-26,31-34,57-59,241
+docs/reports/README.md
+  b5a4ba5fe8eb2bef 1-11
+public/openapi.json
+  b5a4ba5fe8eb2bef 1-257
+app/api/admin/users/import/template/route.ts
+  b5a4ba5fe8eb2bef 2,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "8e8b200a7766819edd13d4a044519211f7a5c58e",
+  "prompts": {
+    "b5a4ba5fe8eb2bef": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "76a67fd7-409d-45a3-8f81-1cdd618cd554",
+        "model": "copilot/gpt-5.3-codex"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 3763,
+      "total_deletions": 2880,
+      "accepted_lines": 1168,
+      "overriden_lines": 0
+    },
+    "ed7f187df19f7ff5": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "34dec74d-623a-425f-a6bd-da719d25ab19",
+        "model": "copilot/gpt-5.3-codex"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
