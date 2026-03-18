@@ -7,6 +7,151 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                 String              @id @default(cuid())
+  nip                String              @unique
+  name               String
+  email              String?             @unique
+  password           String
+  role               Role                @default(PEGAWAI)
+  mustChangePassword Boolean             @default(true)
+  golongan           String?
+  tmtGolongan        DateTime?
+  tmtJabatan         DateTime?
+  jabatan            String?
+  jenisJabatan       String?
+  unitKerjaId        String?
+  wilayah            Wilayah?
+  phone              String?
+  address            String?
+  profilePictureUrl  String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  activityLogs       ActivityLog[]
+  notifications      Notification[]
+  verifiedProposals  PromotionProposal[] @relation("OperatorVerifications")
+  proposals          PromotionProposal[] @relation("PegawaiProposals")
+  unitKerja          UnitKerja?          @relation(fields: [unitKerjaId], references: [id])
+}
+
+model UnitKerja {
+  id        String   @id @default(cuid())
+  nama      String   @unique
+  npsn      String?  @unique
+  jenjang   String
+  alamat    String?
+  kecamatan String?
+  wilayah   Wilayah
+  status    String   @default("Aktif")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pegawai   User[]
+
+  @@index([wilayah])
+  @@index([jenjang])
+}
+
+model PromotionProposal {
+  id                  String             @id @default(cuid())
+  periode             String
+  status              StatusProposal     @default(DRAFT)
+  notes               String?
+  nomorSuratPengantar String?
+  tanggalSurat        DateTime?
+  fileSuratPengantar  String?
+  pegawaiId           String
+  operatorId          String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  operator            User?              @relation("OperatorVerifications", fields: [operatorId], references: [id])
+  pegawai             User               @relation("PegawaiProposals", fields: [pegawaiId], references: [id])
+  documents           ProposalDocument[]
+}
+
+model DocumentRequirement {
+  id          String                @id @default(cuid())
+  code        String                @unique
+  name        String
+  description String?
+  isRequired  Boolean               @default(true)
+  hasSimASN   Boolean               @default(false)
+  detailInfo  DetailedDocumentInfo?
+  proposals   ProposalDocument[]
+}
+
+model ProposalDocument {
+  id                    String              @id @default(cuid())
+  proposalId            String
+  documentRequirementId String
+  fileUrl               String
+  fileName              String
+  fileSize              Int
+  status                StatusDokumen       @default(MENUNGGU_VERIFIKASI)
+  notes                 String?
+  uploadedAt            DateTime            @default(now())
+  documentRequirement   DocumentRequirement @relation(fields: [documentRequirementId], references: [id])
+  proposal              PromotionProposal   @relation(fields: [proposalId], references: [id])
+
+  @@unique([proposalId, documentRequirementId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   Json?
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Timeline {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  jabatanType String
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean  @default(true)
+  priority    Int      @default(1)
+  wilayah     Wilayah?
+  createdBy   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DetailedDocumentInfo {
+  id             String              @id @default(cuid())
+  documentReqId  String              @unique
+  purpose        String?
+  obtainMethod   String?
+  validityPeriod String?
+  legalBasis     String?
+  templateUrl    String?
+  sampleUrl      String?
+  requirements   Json?
+  fillTips       String?
+  commonMistakes String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  documentReq    DocumentRequirement @relation(fields: [documentReqId], references: [id])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  type        String   @default("info")
+  userId      String?
+  userRole    Role?
+  isRead      Boolean  @default(false)
+  actionUrl   String?
+  actionLabel String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User?    @relation(fields: [userId], references: [id])
+}
+
 enum Role {
   PEGAWAI
   OPERATOR
@@ -51,190 +196,4 @@ enum Wilayah {
   PASER
   BERAU
   SAMARINDA
-}
-
-model User {
-  id                 String           @id @default(cuid())
-  nip                String           @unique
-  name               String
-  email              String?          @unique
-  password           String
-  role               Role             @default(PEGAWAI)
-  mustChangePassword Boolean          @default(true)
-  
-  // Data Kepegawaian
-  golongan           String?
-  tmtGolongan        DateTime?
-  tmtJabatan         DateTime?        // TMT Jabatan
-  jabatan            String?
-  jenisJabatan       String?
-  unitKerjaId        String?          // Foreign key ke UnitKerja
-  unitKerja          UnitKerja?       @relation(fields: [unitKerjaId], references: [id])
-  wilayah            Wilayah?         // Khusus untuk Operator
-  
-  // Data Pribadi
-  phone              String?
-  address            String?
-  profilePictureUrl  String?
-  
-  // Relasi
-  proposals          PromotionProposal[] @relation("PegawaiProposals")
-  verifiedProposals  PromotionProposal[] @relation("OperatorVerifications")
-  activityLogs       ActivityLog[]
-  notifications      Notification[]
-
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-}
-
-model UnitKerja {
-  id         String   @id @default(cuid())
-  nama       String   @unique
-  npsn       String?  @unique
-  jenjang    String   // SD, SMP, SMA, SMK, UMUM
-  alamat     String?
-  kecamatan  String?
-  wilayah    Wilayah
-  status     String   @default("Aktif")
-  
-  // Relasi
-  pegawai    User[]
-  
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
-  @@index([wilayah])
-  @@index([jenjang])
-}
-
-model PromotionProposal {
-  id            String         @id @default(cuid())
-  periode       String // e.g., "Agustus 2025"
-  status        StatusProposal @default(DRAFT)
-  notes         String?
-  
-  // Cover letter information
-  nomorSuratPengantar String?
-  tanggalSurat        DateTime?
-  fileSuratPengantar  String? // File path/URL
-  
-  pegawaiId     String
-  pegawai       User           @relation("PegawaiProposals", fields: [pegawaiId], references: [id])
-  
-  operatorId    String?
-  operator      User?          @relation("OperatorVerifications", fields: [operatorId], references: [id])
-
-  documents     ProposalDocument[]
-  
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-}
-
-model DocumentRequirement {
-  id          String   @id @default(cuid())
-  code        String   @unique // e.g., "sk-kenaikan-terakhir"
-  name        String
-  description String?
-  isRequired  Boolean  @default(true)
-  hasSimASN   Boolean  @default(false)
-
-  proposals   ProposalDocument[]
-  detailInfo  DetailedDocumentInfo?
-}
-
-model ProposalDocument {
-  id                    String        @id @default(cuid())
-  proposalId            String
-  proposal              PromotionProposal @relation(fields: [proposalId], references: [id])
-  
-  documentRequirementId String
-  documentRequirement   DocumentRequirement @relation(fields: [documentRequirementId], references: [id])
-  
-  fileUrl               String
-  fileName              String
-  fileSize              Int // in bytes
-  status                StatusDokumen @default(MENUNGGU_VERIFIKASI)
-  notes                 String?
-  
-  uploadedAt            DateTime      @default(now())
-  
-  @@unique([proposalId, documentRequirementId])
-}
-
-model ActivityLog {
-  id        String   @id @default(cuid())
-  action    String
-  details   Json?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
-  createdAt DateTime @default(now())
-}
-
-model Timeline {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  jabatanType String   // "pelaksana", "struktural", "fungsional", "all"
-  
-  // Periode waktu
-  startDate   DateTime
-  endDate     DateTime
-  
-  // Status dan pengaturan
-  isActive    Boolean  @default(true)
-  priority    Int      @default(1) // 1=Normal, 2=Penting, 3=Mendesak
-  
-  // Wilayah yang berlaku (kosong = semua wilayah)
-  wilayah     Wilayah?
-  
-  // Metadata
-  createdBy   String?
-  notes       String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model DetailedDocumentInfo {
-  id               String  @id @default(cuid())
-  documentReqId    String  @unique
-  documentReq      DocumentRequirement @relation(fields: [documentReqId], references: [id])
-  
-  // Informasi detail
-  purpose          String? // Tujuan dokumen
-  obtainMethod     String? // Cara memperoleh
-  validityPeriod   String? // Masa berlaku
-  legalBasis       String? // Dasar hukum
-  
-  // Template dan contoh
-  templateUrl      String? // Link template
-  sampleUrl        String? // Link contoh
-  
-  // Syarat tambahan
-  requirements     Json?   // Array syarat tambahan
-  
-  // Tips pengisian
-  fillTips         String?
-  commonMistakes   String? // Kesalahan umum
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-}
-
-model Notification {
-  id          String   @id @default(cuid())
-  title       String
-  message     String
-  type        String   @default("info") // info, success, warning, error
-  userId      String?  // Specific user, null for global
-  userRole    Role?    // Role-based notification
-  isRead      Boolean  @default(false)
-  actionUrl   String?  // Optional URL to navigate to
-  actionLabel String?  // Optional action button text
-  
-  user        User?    @relation(fields: [userId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }

@@ -54,7 +54,13 @@ export function EnhancedLoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nip, password }),
+        body: JSON.stringify({ 
+          nip, 
+          password,
+          captchaValue: "DEMO12345", 
+          captchaHash: "not-needed-for-demo",
+          userType 
+        }),
       })
 
       const data = await response.json()

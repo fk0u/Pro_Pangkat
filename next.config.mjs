@@ -1,14 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
   images: {
     unoptimized: true,
-    domains: ['bkd.kaltimprov.go.id'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -19,7 +15,6 @@ const nextConfig = {
     ],
   },
   // Performance optimizations
-  swcMinify: true,
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
@@ -29,12 +24,8 @@ const nextConfig = {
     } : false,
   },
   experimental: {
-    // Enable server components for better performance
-    serverComponents: true,
     // Optimize page loading
     optimizeCss: true,
-    // Cache responses for improved performance
-    workerThreads: true,
     // Better code splitting
     optimizePackageImports: [
       'lucide-react',

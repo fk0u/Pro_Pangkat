@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server"
 import { withAuth, createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
 import { parseUserImportExcel, validateUserImportData } from "@/lib/excel-utils"
 import { hashPassword } from "@/lib/password"
-import prisma from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 import { Role, type Wilayah } from "@prisma/client"
 
 export const POST = withAuth(

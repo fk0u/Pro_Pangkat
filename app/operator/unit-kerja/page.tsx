@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { ExportButton } from "@/components/export-button"
+import { ExportColumn, formatDate } from "@/lib/export-utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -119,6 +121,7 @@ interface CreateOperatorResult {
 }
 
 export default function OperatorUnitKerjaPage() {
+  const { toast } = useToast()
   const [filteredData, setFilteredData] = useState<UnitKerja[]>([])
   const [search, setSearch] = useState("")
   const [jenjangFilter, setJenjangFilter] = useState("all")
@@ -201,8 +204,20 @@ export default function OperatorUnitKerjaPage() {
     statusMessage: ""
   })
   
-  // Toast notification
-  const { toast } = useToast()
+  // Export columns
+  const exportColumns: ExportColumn[] = [
+    { header: 'Nama Sekolah', accessor: 'nama', width: 30 },
+    { header: 'NPSN', accessor: 'npsn', width: 15 },
+    { header: 'Jenjang', accessor: 'jenjang', width: 10 },
+    { header: 'Alamat', accessor: 'alamat', width: 30 },
+    { header: 'Kecamatan', accessor: 'kecamatan', width: 20 },
+    { header: 'Status', accessor: 'status', width: 15 },
+    { header: 'Kepala Sekolah', accessor: 'kepalaSekolah', width: 25 },
+    { header: 'Email', accessor: 'email', width: 25 },
+    { header: 'Telepon', accessor: 'phone', width: 20 },
+    { header: 'Website', accessor: 'website', width: 25 },
+    { header: 'Jumlah Pegawai', accessor: 'jumlahPegawai', width: 15 }
+  ]
 
   const fetchUnitKerjaData = useCallback(async () => {
     try {
@@ -1161,6 +1176,15 @@ export default function OperatorUnitKerjaPage() {
                   Data Unit Kerja (Sekolah)
                 </CardTitle>
                 <div className="flex items-center gap-4">
+                  {/* Export button */}
+                  <ExportButton
+                    data={filteredData}
+                    columns={exportColumns}
+                    filename="Data_Unit_Kerja"
+                    title="Data Unit Kerja (Sekolah)"
+                    disabled={loading || filteredData.length === 0}
+                  />
+                
                   {/* Auto-sync button for schools without data */}
                   {filteredData.some(unit => !unit.lastSyncedAt) && (
                     <Button 

@@ -1,0 +1,40 @@
+# ProPangkat
+
+Repository aplikasi ProPangkat (Next.js + Prisma + PostgreSQL) dengan struktur dokumentasi yang dirapikan untuk mendukung metode Waterfall.
+
+## Struktur Repository
+
+- `app/`, `components/`, `lib/`, `hooks/`, `types/`: source code runtime.
+- `prisma/`: schema dan migrasi database.
+- `scripts/`: script setup, seed, dan utilitas.
+- `docs/waterfall/`: artefak resmi per fase Waterfall.
+- `docs/reports/`: laporan implementasi/fix historis.
+- `archive/snapshots/`: file backup non-runtime (`.new`, `.bak`, `.backup`).
+
+## Waterfall Workspace
+
+- Inisiasi: `docs/waterfall/01-initiation/`
+- Requirement: `docs/waterfall/02-requirements/`
+- Design: `docs/waterfall/03-design/`
+- Implementation: `docs/waterfall/04-implementation/`
+- Verification: `docs/waterfall/05-verification/`
+- Maintenance: `docs/waterfall/06-maintenance/`
+
+Lihat panduan lengkap di `docs/waterfall/README.md` dan kebijakan struktur di `docs/governance/repository-structure.md`.
+
+## Menjalankan Proyek
+
+1. Install dependency:
+	- `npm install`
+2. Generate Prisma Client:
+	- `npx prisma generate`
+3. Jalankan aplikasi:
+	- `npm run dev`
+4. Build produksi:
+	- `npm run build`
+
+## Catatan Operasional
+
+- Gunakan `archive/snapshots/` untuk menyimpan file eksperimen atau backup.
+- Hindari menyimpan file snapshot di folder source aktif.
+- Simpan bukti uji dan sign-off di fase verification sebelum rilis.

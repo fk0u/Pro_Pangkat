@@ -21,10 +21,17 @@ export default function Error({
   const [reportSent, setReportSent] = useState(false)
   const [reportDescription, setReportDescription] = useState("")
   const [isReportOpen, setIsReportOpen] = useState(false)
+  const [timestamp, setTimestamp] = useState("Unknown")
+  const [currentUrl, setCurrentUrl] = useState("Unknown")
+  const [userAgent, setUserAgent] = useState("Unknown")
 
   useEffect(() => {
     // Log error to error reporting service
     console.error('Application error:', error)
+
+    setTimestamp(new Date().toISOString())
+    setCurrentUrl(window.location.href)
+    setUserAgent(navigator.userAgent)
     
     // You can integrate with error reporting services here
     // Example: Sentry, LogRocket, Bugsnag, etc.
@@ -47,9 +54,9 @@ export default function Error({
   const errorDetails = {
     message: error.message,
     digest: error.digest,
-    timestamp: new Date().toISOString(),
-    url: typeof window !== 'undefined' ? window.location.href : 'Unknown',
-    userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'Unknown'
+    timestamp,
+    url: currentUrl,
+    userAgent
   }
 
   const copyErrorDetails = async () => {
@@ -231,7 +238,7 @@ User Agent: ${errorDetails.userAgent}`
           {/* Additional Info */}
           <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              Error ID: {error?.digest || 'Unknown'} • {new Date().toLocaleString('id-ID')}
+              Error ID: {error?.digest || 'Unknown'} • {timestamp === 'Unknown' ? '-' : new Date(timestamp).toLocaleString('id-ID')}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Jika masalah berlanjut, silakan{" "}

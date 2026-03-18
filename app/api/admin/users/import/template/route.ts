@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { generateExcelTemplate } from "@/lib/excel-utils"
+import { generateUserImportTemplate } from "@/lib/excel-utils"
 
 export async function GET() {
   try {
@@ -17,7 +17,7 @@ export async function GET() {
       },
     ]
 
-    const buffer = generateExcelTemplate(templateData, "Template Import Pengguna", "template-import-pengguna.xlsx")
+    const buffer = generateUserImportTemplate()
 
     return new NextResponse(buffer, {
       headers: {

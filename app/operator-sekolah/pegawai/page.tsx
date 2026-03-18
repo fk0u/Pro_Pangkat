@@ -12,8 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Search, Plus, Eye, Edit, Trash2, Users, Filter, RefreshCw, UserPlus, AlertTriangle } from "lucide-react"
+import { Search, Plus, Eye, Edit, Trash2, Users, Filter, RefreshCw, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { ExportButton } from "@/components/export-button"
+import { ExportColumn } from "@/lib/export-utils"
+import { ImportPegawaiModal } from "@/components/import-pegawai-modal"
 
 interface ApiResponse {
   id: string
@@ -46,10 +49,22 @@ export default function PegawaiPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [perPage, setPerPage] = useState(10)
   
+  // Define export columns
+  const exportColumns: ExportColumn[] = [
+    { header: "NIP", accessor: "nip", width: 20 },
+    { header: "Nama", accessor: "nama", width: 30 },
+    { header: "Email", accessor: "email", width: 30 },
+    { header: "Jabatan", accessor: "jabatan", width: 25 },
+    { header: "Golongan", accessor: "golongan", width: 15 },
+    { header: "Status Kepegawaian", accessor: "statusKepegawaian", width: 20 },
+    { header: "Unit Kerja", accessor: "unitKerja", width: 30 }
+  ]
+  
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [selectedPegawai, setSelectedPegawai] = useState<PegawaiData | null>(null)
   
   // Form states
@@ -267,7 +282,7 @@ export default function PegawaiPage() {
           unitKerja: typeof item.unitKerja === 'string' 
             ? item.unitKerja 
             : typeof item.unitKerja === 'object' && item.unitKerja !== null
-              ? (item.unitKerja.nama || '') 
+              ? ((item.unitKerja as {nama?: string}).nama || '') 
               : ''
         }))
         
@@ -427,11 +442,31 @@ export default function PegawaiPage() {
 
         {/* Data Table */}
         <Card>
-          <CardHeader>
-            <CardTitle>Data Pegawai</CardTitle>
-            <CardDescription>
-              Menampilkan {pegawaiList.length} dari {totalCount} pegawai
-            </CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle>Data Pegawai</CardTitle>
+              <CardDescription>
+                Menampilkan {pegawaiList.length} dari {totalCount} pegawai
+              </CardDescription>
+            </div>
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsImportModalOpen(true)}
+                className="flex items-center"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+              <ExportButton 
+                data={pegawaiList}
+                columns={exportColumns}
+                filename="Data_Pegawai"
+                title="Data Pegawai"
+                disabled={loading || pegawaiList.length === 0}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -544,16 +579,18 @@ export default function PegawaiPage() {
           </div>
           <div className="flex items-center space-x-2">
             <span>Show</span>
-            <Select value={perPage.toString()} onValueChange={val => { setPerPage(Number(val)); setCurrentPage(1); }} className="w-20">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10,20,50,100].map(n => (
-                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-20">
+              <Select value={perPage.toString()} onValueChange={val => { setPerPage(Number(val)); setCurrentPage(1); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[10,20,50,100].map(n => (
+                    <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <span>per page</span>
           </div>
         </div>
@@ -815,6 +852,13 @@ export default function PegawaiPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Import Modal */}
+        <ImportPegawaiModal 
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onImportSuccess={loadPegawaiData}
+        />
       </div>
     </DashboardLayout>
   )

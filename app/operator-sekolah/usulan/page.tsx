@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ExportButton } from "@/components/export-button"
+import { ExportColumn, formatDate, formatStatus } from "@/lib/export-utils"
 import { 
   Search, 
   Filter, 
@@ -34,7 +36,7 @@ interface Usulan {
   jabatan: string
   unitKerja: string
   tanggalUsulan: string
-  status: "menunggu_verifikasi" | "sedang_diproses" | "disetujui" | "ditolak" | "butuh_perbaikan" | "ditarik"
+  status: string
   rawStatus: string
   keterangan?: string
   dokumenLengkap: boolean
@@ -96,6 +98,20 @@ export default function OperatorSekolahUsulanPage() {
   const [filteredData, setFilteredData] = useState<Usulan[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  
+  // Export columns
+  const exportColumns: ExportColumn[] = [
+    { header: 'NIP', accessor: 'nip', width: 20 },
+    { header: 'Nama', accessor: 'nama', width: 30 },
+    { header: 'Golongan Asal', accessor: 'golonganAsal', width: 15 },
+    { header: 'Golongan Tujuan', accessor: 'golonganTujuan', width: 15 },
+    { header: 'Jabatan', accessor: 'jabatan', width: 25 },
+    { header: 'Unit Kerja', accessor: 'unitKerja', width: 30 },
+    { header: 'Tanggal Usulan', accessor: 'tanggalUsulan', width: 20 },
+    { header: 'Status', accessor: 'status', width: 15 },
+    { header: 'Keterangan', accessor: 'keterangan', width: 30 },
+    { header: 'Dokumen Lengkap', accessor: 'dokumenLengkap', width: 15 }
+  ]
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedUsulan, setSelectedUsulan] = useState<Usulan | null>(null)
   const [isProcessingModalOpen, setIsProcessingModalOpen] = useState(false)
@@ -456,11 +472,20 @@ export default function OperatorSekolahUsulanPage() {
 
         {/* Data Table */}
         <Card>
-          <CardHeader>
-            <CardTitle>Daftar Usulan Kenaikan Pangkat</CardTitle>
-            <CardDescription>
-              Menampilkan {filteredData.length} dari {usulanData.length} usulan
-            </CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle>Daftar Usulan Kenaikan Pangkat</CardTitle>
+              <CardDescription>
+                Menampilkan {filteredData.length} dari {usulanData.length} usulan
+              </CardDescription>
+            </div>
+            <ExportButton 
+              data={filteredData}
+              columns={exportColumns}
+              filename="Daftar_Usulan_Kenaikan_Pangkat"
+              title="Daftar Usulan Kenaikan Pangkat"
+              disabled={loading || filteredData.length === 0}
+            />
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">

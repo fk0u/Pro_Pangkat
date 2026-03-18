@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server"
 import { withAuth, createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
-import prisma from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 import { StatusProposal } from "@prisma/client"
 
 // GET: Fetch all proposals for operators

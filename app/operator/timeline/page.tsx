@@ -467,8 +467,8 @@ export default function TimelinePage() {
                           </Badge>
                         </div>
                         <div className="grid gap-4">
-                          {safeMapToArray(ensureArray(docs), (doc: any) => (
-                            <div key={doc.id || Math.random()} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-gray-200 dark:border-gray-700">
+                          {safeMapToArray(ensureArray(docs), (doc: any, docIndex: number) => (
+                            <div key={doc.id || `${ensureString(category)}-${docIndex}`} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-gray-200 dark:border-gray-700">
                               <div className="space-y-4">
                                 {/* Header Dokumen */}
                                 <div className="flex items-start justify-between">

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server"
 import { withAuth, createSuccessResponse, createErrorResponse } from "@/lib/api-utils"
-import prisma from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 import { type StatusDokumen, StatusProposal } from "@prisma/client"
 
 // PATCH: Update document status

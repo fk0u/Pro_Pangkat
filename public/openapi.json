@@ -1,0 +1,257 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ProPangkat API",
+    "version": "4.1.0",
+    "description": "Dokumentasi API utama untuk sistem ProPangkat."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Login, session, dan profile pengguna" },
+    { "name": "Shared", "description": "Endpoint data bersama lintas role" },
+    { "name": "Operator", "description": "Endpoint untuk role operator" },
+    { "name": "Admin", "description": "Endpoint untuk role admin" },
+    { "name": "Database", "description": "Endpoint observasi struktur database" }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login pengguna",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nip", "password"],
+                "properties": {
+                  "nip": { "type": "string", "example": "198501012010011001" },
+                  "password": { "type": "string", "example": "198501012010011001" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login berhasil",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          },
+          "401": { "description": "Kredensial tidak valid" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Ambil user aktif",
+        "responses": {
+          "200": {
+            "description": "Data user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Belum login" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout pengguna",
+        "responses": {
+          "200": { "description": "Logout berhasil" }
+        }
+      }
+    },
+    "/api/shared/periods": {
+      "get": {
+        "tags": ["Shared"],
+        "summary": "Daftar periode timeline aktif",
+        "responses": {
+          "200": {
+            "description": "Data periode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Period" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shared/timeline": {
+      "get": {
+        "tags": ["Shared"],
+        "summary": "Timeline lintas role",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Timeline berhasil diambil" }
+        }
+      }
+    },
+    "/api/operator/unit-kerja": {
+      "get": {
+        "tags": ["Operator"],
+        "summary": "Daftar unit kerja untuk operator",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Data unit kerja",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/UnitKerja" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Daftar user sistem",
+        "responses": {
+          "200": {
+            "description": "Data user berhasil diambil"
+          }
+        }
+      }
+    },
+    "/api/database-explorer": {
+      "get": {
+        "tags": ["Database"],
+        "summary": "Ringkasan tabel database untuk UI explorer",
+        "responses": {
+          "200": {
+            "description": "Ringkasan tabel dan jumlah baris",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "database": { "type": "string" },
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "table": { "type": "string" },
+                          "rowCount": { "type": "integer" },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": { "type": "string" },
+                                "type": { "type": "string" },
+                                "nullable": { "type": "boolean" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Success" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "nip": { "type": "string" },
+          "name": { "type": "string" },
+          "role": {
+            "type": "string",
+            "enum": ["PEGAWAI", "OPERATOR", "ADMIN", "OPERATOR_SEKOLAH", "OPERATOR_UNIT_KERJA"]
+          },
+          "email": { "type": "string", "nullable": true }
+        }
+      },
+      "Period": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "startDate": { "type": "string", "format": "date-time" },
+          "endDate": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UnitKerja": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "nama": { "type": "string" },
+          "npsn": { "type": "string", "nullable": true },
+          "jenjang": { "type": "string" },
+          "wilayah": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    }
+  }
+}

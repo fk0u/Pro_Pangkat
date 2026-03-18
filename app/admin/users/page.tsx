@@ -3,15 +3,16 @@
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Eye, Pencil, Trash2, Download, Plus, Info, Users, Loader2 } from "lucide-react"
+import { Eye, Pencil, Trash2, Download, Plus, Info, Users, Loader2, Search, Filter } from "lucide-react"
 import { motion } from "framer-motion"
-import * as XLSX from "xlsx"
 import { useToast } from "@/hooks/use-toast"
 import { UserModal } from "@/components/user-modal"
+import { ExportButton } from "@/components/export-button"
+import { ExportColumn, formatDate } from "@/lib/export-utils"
 
 interface User {
   id: string
@@ -36,6 +37,16 @@ export default function ManageUserPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"add" | "edit" | "view">("add")
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined)
+  
+  // Define export columns
+  const exportColumns: ExportColumn[] = [
+    { header: 'Nama', accessor: 'name', width: 30 },
+    { header: 'NIP', accessor: 'nip', width: 20 },
+    { header: 'Role', accessor: 'role', width: 15 },
+    { header: 'Unit Kerja', accessor: 'unitKerja', width: 30 },
+    { header: 'Wilayah', accessor: 'wilayah', width: 20 },
+    { header: 'Status', accessor: 'isActive', width: 15 }
+  ]
   
   const fetchUsers = async () => {
     try {
@@ -233,9 +244,13 @@ export default function ManageUserPage() {
               <p className="text-sm text-muted-foreground">Menampilkan {filteredUsers.length} dari {userList.length} pengguna</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={exportExcel}>
-                <Download className="h-4 w-4 mr-2" /> Export Excel
-              </Button>
+              <ExportButton
+                data={filteredUsers}
+                columns={exportColumns}
+                filename="Daftar_Pengguna"
+                title="Daftar Pengguna"
+                disabled={loading || filteredUsers.length === 0}
+              />
               <Button onClick={handleAdd}>
                 <Plus className="h-4 w-4 mr-2" /> Tambah Pengguna
               </Button>

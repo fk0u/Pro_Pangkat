@@ -48,6 +48,13 @@ interface UnitKerjaData {
   jenjang?: string;
 }
 
+function stableId(prefix: string, value: string | undefined, index: number): string {
+  if (value && value.trim().length > 0) {
+    return value
+  }
+  return `${prefix}-${index}`
+}
+
 export default function OperatorReportExportPage() {
   const { toast } = useToast()
   const [data, setData] = useState<DocumentReport[]>([])
@@ -94,8 +101,8 @@ export default function OperatorReportExportPage() {
       
       const options = [
         { value: "current", label: "Periode Aktif" },
-        ...result.data.map((p: PeriodData) => ({ 
-          value: p.id || `period-${Math.random().toString(36).substring(2, 9)}`, 
+        ...result.data.map((p: PeriodData, index: number) => ({ 
+          value: stableId("period", p.id, index), 
           label: `${p.title} (${new Date(p.startDate).toLocaleDateString("id-ID")} - ${new Date(p.endDate).toLocaleDateString("id-ID")})` 
         }))
       ]
@@ -123,8 +130,8 @@ export default function OperatorReportExportPage() {
       
       const options = [
         { value: "all", label: "Semua Unit Kerja" },
-        ...result.data.map((uk: UnitKerjaData) => ({ 
-          value: uk.id || `uk-${Math.random().toString(36).substring(2, 9)}`, 
+        ...result.data.map((uk: UnitKerjaData, index: number) => ({ 
+          value: stableId("uk", uk.id, index), 
           label: uk.nama || "Unit Kerja"
         }))
       ]
@@ -222,11 +229,11 @@ export default function OperatorReportExportPage() {
       });
       
       // Transform the data to match our interface
-      const transformedData: DocumentReport[] = Array.isArray(responseData) ? responseData.map((item: ProposalData) => {
+      const transformedData: DocumentReport[] = Array.isArray(responseData) ? responseData.map((item: ProposalData, index: number) => {
         if (!item || !item.pegawai) {
           console.warn("Skipping invalid item without pegawai data:", item?.id || "unknown");
           return {
-            id: item?.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: stableId("temp", item?.id, index),
             nama: "Data Tidak Lengkap",
             nip: "N/A",
             unitKerja: "N/A",
@@ -237,7 +244,7 @@ export default function OperatorReportExportPage() {
         }
 
         return {
-          id: item.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: stableId("temp", item.id, index),
           nama: item.pegawai?.name || "N/A",
           nip: item.pegawai?.nip || "N/A",
           unitKerja: typeof item.pegawai?.unitKerja === 'object' ? item.pegawai?.unitKerja?.nama : item.pegawai?.unitKerja || "N/A",
@@ -368,7 +375,7 @@ export default function OperatorReportExportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {periodOptions.map((option) => (
-                    <SelectItem key={option.value || `period-${Math.random()}`} value={option.value || `period-${Math.random()}`}>
+                    <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
                   ))}
@@ -399,7 +406,7 @@ export default function OperatorReportExportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {unitKerjaOptions.map((option) => (
-                    <SelectItem key={option.value || `uk-${Math.random()}`} value={option.value || `uk-${Math.random()}`}>
+                    <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
                   ))}

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server"
 import { withAuth, createErrorResponse } from "@/lib/api-utils"
 import { generateExcelExport } from "@/lib/excel-utils"
-import prisma from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
 export const GET = withAuth(
