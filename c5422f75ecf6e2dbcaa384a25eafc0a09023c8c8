@@ -1,0 +1,29 @@
+.gitignore
+  b5a4ba5fe8eb2bef 21-48
+docs/2026-03-18-linear-delivery-summary.md
+  b5a4ba5fe8eb2bef 1-66
+.env.example
+  b5a4ba5fe8eb2bef 1-19
+README.md
+  b5a4ba5fe8eb2bef 3,5,7-11,13,15-19,21,23,25-27,29-80,84,86,88-102,104-107,109,111-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "c5422f75ecf6e2dbcaa384a25eafc0a09023c8c8",
+  "prompts": {
+    "b5a4ba5fe8eb2bef": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "76a67fd7-409d-45a3-8f81-1cdd618cd554",
+        "model": "copilot/gpt-5.3-codex"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 226,
+      "total_deletions": 74,
+      "accepted_lines": 229,
+      "overriden_lines": 0
+    }
+  }
+}
