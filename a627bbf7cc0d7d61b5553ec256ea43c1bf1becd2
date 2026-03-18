@@ -1,0 +1,31 @@
+bruno-collection/environments/Local.bru
+  b5a4ba5fe8eb2bef 1-3
+bruno-collection/bruno.json
+  b5a4ba5fe8eb2bef 1-9
+"bruno-collection/Auth/Generate Captcha.bru"
+  b5a4ba5fe8eb2bef 1-11
+scripts/generate-bruno.js
+  b5a4ba5fe8eb2bef 1-95
+bruno-collection/Auth/Login.bru
+  b5a4ba5fe8eb2bef 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "a627bbf7cc0d7d61b5553ec256ea43c1bf1becd2",
+  "prompts": {
+    "b5a4ba5fe8eb2bef": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "76a67fd7-409d-45a3-8f81-1cdd618cd554",
+        "model": "copilot/gemini-3.1-pro-preview"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 138,
+      "total_deletions": 0,
+      "accepted_lines": 143,
+      "overriden_lines": 0
+    }
+  }
+}
