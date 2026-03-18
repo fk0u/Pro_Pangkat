@@ -1,0 +1,39 @@
+scripts/ops-runtime-monitor.js
+  b5a4ba5fe8eb2bef 1-318,320-331,338-339,341-543
+scripts/db-health.ts
+  b5a4ba5fe8eb2bef 1-52,54-56,58-62,64-87,91-111
+docs/waterfall/06-maintenance/runtime-monitor-guide.md
+  b5a4ba5fe8eb2bef 1-35
+package.json
+  b5a4ba5fe8eb2bef 10-12,18-19
+docs/waterfall/06-maintenance/2026-03-18-backend-database-recovery-playbook-done.md
+  b5a4ba5fe8eb2bef 1-55
+README.md
+  b5a4ba5fe8eb2bef 57
+scripts/check-data.ts
+  b5a4ba5fe8eb2bef 6-7,11,13-19,21-22,24-39,41-46,48-63
+scripts/show-users.ts
+  b5a4ba5fe8eb2bef 2,18-23,25-27,31-40,44-51,56,58-59,63-68
+scripts/db-recover.ts
+  b5a4ba5fe8eb2bef 1-6,8-25,28-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "88adb647f1412c2d2c9affaf5699d81312947872",
+  "prompts": {
+    "b5a4ba5fe8eb2bef": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "76a67fd7-409d-45a3-8f81-1cdd618cd554",
+        "model": "copilot/gpt-5.3-codex"
+      },
+      "human_author": "AG-MacMini <kou.real@outlook.com>",
+      "messages": [],
+      "total_additions": 1141,
+      "total_deletions": 301,
+      "accepted_lines": 887,
+      "overriden_lines": 11
+    }
+  }
+}
