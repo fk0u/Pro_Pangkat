@@ -20,12 +20,9 @@ interface FormErrors {
   captcha?: string
 }
 
-interface CompactLoginFormProps {
-  userType?: "pegawai" | "operator" | "admin" | "operator-sekolah"
-  redirectTo?: string
-}
+interface CompactLoginFormProps { redirectTo?: string }
 
-export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboard" }: CompactLoginFormProps) {
+export function CompactLoginForm({ redirectTo = "/dashboard" }: CompactLoginFormProps) {
   const [nip, setNip] = useState("")
   const [password, setPassword] = useState("")
   const [captcha, setCaptcha] = useState("")
@@ -34,6 +31,9 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [require2FA, setRequire2FA] = useState(false)
+  const [otpToken, setOtpToken] = useState("")
+  const [isVerifying2FA, setIsVerifying2FA] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [isFormValid, setIsFormValid] = useState(false)
   const [isCaptchaValid, setIsCaptchaValid] = useState(false)
@@ -118,7 +118,6 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
         captchaValue: captcha,
         captchaHash,
         captchaToken: captchaHash,
-        userType,
       }
       
       const response = await fetch("/api/auth/login", {
@@ -147,12 +146,12 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
       if (rememberMe) {
         localStorage.setItem("rememberMe", "true")
         localStorage.setItem("savedNip", nip)
-        localStorage.setItem("userType", userType)
+        
       } else {
         // Clear saved data if remember me is not checked
         localStorage.removeItem("rememberMe")
         localStorage.removeItem("savedNip")
-        localStorage.removeItem("userType")
+        
       }
 
       // Check if user must change password
@@ -182,6 +181,54 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
       setIsLoading(false);
     }
   }
+
+
+  const handleVerify2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpToken) return;
+
+    setIsVerifying2FA(true);
+    try {
+      const response = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: otpToken }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Kode OTP tidak valid');
+      }
+
+      toast({
+        title: 'Verifikasi Berhasil',
+        description: `Selamat datang, ${data.user?.name || ''}`,
+      });
+
+      if (rememberMe) {
+        localStorage.setItem('rememberMe', 'true');
+        localStorage.setItem('savedNip', nip);
+      } else {
+        localStorage.removeItem('rememberMe');
+        localStorage.removeItem('savedNip');
+      }
+
+      if (data.user?.mustChangePassword) {
+        setCurrentUser(data.user);
+        setShowChangePasswordModal(true);
+      } else {
+        redirectToUserDashboard(data.user.role || 'PEGAWAI');
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Verifikasi Gagal',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsVerifying2FA(false);
+    }
+  };
 
   const redirectToUserDashboard = (role: string) => {
     let targetRoute = redirectTo
@@ -224,40 +271,18 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
   // Load saved credentials
   useEffect(() => {
     const savedNip = localStorage.getItem("savedNip")
-    const savedUserType = localStorage.getItem("userType")
+    
     const rememberMeStatus = localStorage.getItem("rememberMe")
 
-    if (rememberMeStatus === "true" && savedNip && savedUserType === userType) {
+    if (rememberMeStatus === "true" && savedNip) {
       setNip(savedNip)
       setRememberMe(true)
     }
-  }, [userType])
+  }, [])
 
-  const getUserTypeColor = () => {
-    switch (userType) {
-      case "operator":
-        return "from-green-500 to-emerald-500"
-      case "admin":
-        return "from-red-500 to-red-600"
-      case "operator-sekolah":
-        return "from-purple-500 to-purple-600"
-      default:
-        return "from-sky-500 to-teal-500"
-    }
-  }
+  const getUserTypeColor = () => "from-sky-500 to-teal-500"
 
-  const getUserTypeTitle = () => {
-    switch (userType) {
-      case "operator":
-        return "Operator"
-      case "admin":
-        return "Administrator"
-      case "operator-sekolah":
-        return "Operator Sekolah"
-      default:
-        return "Pegawai"
-    }
-  }
+  const getUserTypeTitle = () => "Sistem Terpadu"
 
   return (
     <>
@@ -300,7 +325,40 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
         </div>
 
         {/* Form Section - sama seperti sebelumnya */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        
+        {require2FA ? (
+          <form onSubmit={handleVerify2FA} className="space-y-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">🔒 Verifikasi 2-Langkah</h3>
+              <p className="text-sm text-gray-500 max-w-[260px] mx-auto">Buka aplikasi Authenticator Anda dan masukkan kode 6-digit.</p>
+            </motion.div>
+            <div className="relative mt-4 mb-6">
+              <div className="flex justify-center">
+                <Input
+                  type="text"
+                  placeholder="000000"
+                  value={otpToken}
+                  onChange={(e) => setOtpToken(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                  disabled={isVerifying2FA}
+                  className="h-14 w-full md:w-3/4 rounded-2xl bg-gray-100 dark:bg-gray-800 border-2 px-4 py-2 text-center text-3xl font-extrabold tracking-[0.5em] transition-all duration-300 focus:bg-white dark:focus:bg-gray-700 focus:border-sky-400 placeholder:text-gray-300"
+                  maxLength={6}
+                />
+              </div>
+            </div>
+            <Button
+              type="submit"
+              disabled={isVerifying2FA || otpToken.length !== 6}
+              className={`w-full h-12 rounded-full text-white font-medium text-lg transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center space-x-2 bg-gradient-to-r ${getUserTypeColor()}`}
+            >
+              {isVerifying2FA ? <Loader2 className="h-6 w-6 animate-spin" /> : <span>Verifikasi <ArrowRight className="ml-2 h-5 w-5 inline" /></span>}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full text-sm text-gray-500 hover:text-gray-700" onClick={() => setRequire2FA(false)}>
+              Batal
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+
           {/* NIP Input */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -485,13 +543,14 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
             className="text-center pt-2"
           >
             <Link
-              href={`/forgot-password/${userType}`}
+              href="/forgot-password"
               className={`text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-sky-500 dark:hover:text-sky-400 transition-colors duration-200 hover:underline ${isLoading ? "pointer-events-none opacity-50" : ""}`}
             >
               Lupa Password?
             </Link>
           </motion.div>
         </form>
+        )}
 
         {/* Demo Info */}
         <motion.div
@@ -501,11 +560,9 @@ export function CompactLoginForm({ userType = "pegawai", redirectTo = "/dashboar
           className="mt-4 p-3 bg-sky-50 dark:bg-gray-800 rounded-xl border border-sky-200 dark:border-gray-700"
         >
           <p className="text-xs text-sky-700 dark:text-sky-300 text-center font-medium">
-            <strong>Demo {getUserTypeTitle()}:</strong><br />
-            {userType === "admin" && "NIP: 000000000000000001 | Password: 000000000000000001"}
-            {userType === "operator" && "NIP: 111111111111111111 | Password: 111111111111111111"}
-            {userType === "operator-sekolah" && "NIP: 801111111111111111 | Password: 801111111111111111"}
-            {userType === "pegawai" && "NIP: 198501012010011001 | Password: 198501012010011001"}
+            <strong>Demo Accounts:</strong><br />
+            Admin: 000000000000000001 / 000000000000000001<br/>
+            Pegawai: 198501012010011001 / 198501012010011001
           </p>
         </motion.div>
       </motion.div>

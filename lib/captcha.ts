@@ -1,9 +1,9 @@
 import crypto from "crypto"
+import { redis } from "./redis"
 
 const CAPTCHA_SECRET = process.env.SECRET_COOKIE_PASSWORD || "propangkat-fallback-captcha-secret"
 const CAPTCHA_TTL_MS = 5 * 60 * 1000
-
-const usedCaptchaNonce = new Map<string, number>()
+const CAPTCHA_NONCE_PREFIX = "propangkat:captcha:"
 
 function base64UrlEncode(value: string) {
   return Buffer.from(value, "utf8").toString("base64url")
@@ -20,18 +20,7 @@ function signCaptcha(answer: string, nonce: string, expiresAt: number) {
     .digest("base64url")
 }
 
-function cleanupUsedNonce() {
-  const now = Date.now()
-  for (const [nonce, exp] of usedCaptchaNonce.entries()) {
-    if (exp <= now) {
-      usedCaptchaNonce.delete(nonce)
-    }
-  }
-}
-
 export function issueCaptchaToken(answer: string) {
-  cleanupUsedNonce()
-
   const nonce = crypto.randomBytes(12).toString("hex")
   const expiresAt = Date.now() + CAPTCHA_TTL_MS
   const payloadRaw = JSON.stringify({ nonce, expiresAt })
@@ -52,8 +41,7 @@ function constantTimeEqual(a: string, b: string) {
   return crypto.timingSafeEqual(aBuffer, bBuffer)
 }
 
-export function verifyCaptchaToken(input: string, token: string, options?: { consume?: boolean }) {
-  cleanupUsedNonce()
+export async function verifyCaptchaToken(input: string, token: string, options?: { consume?: boolean }) {
   const shouldConsume = options?.consume ?? true
 
   if (!input || !token || !token.includes(".")) {
@@ -85,7 +73,11 @@ export function verifyCaptchaToken(input: string, token: string, options?: { con
     return { valid: false, reason: "token-expired" as const }
   }
 
-  if (usedCaptchaNonce.has(nonce)) {
+  // Check Redis if token was already consumed
+  const fullNonceKey = `${CAPTCHA_NONCE_PREFIX}${nonce}`
+  const isUsed = await redis.get(fullNonceKey)
+  
+  if (isUsed) {
     return { valid: false, reason: "token-already-used" as const }
   }
 
@@ -97,7 +89,10 @@ export function verifyCaptchaToken(input: string, token: string, options?: { con
   }
 
   if (shouldConsume) {
-    usedCaptchaNonce.set(nonce, expiresAt)
+    const ttlSeconds = Math.ceil((expiresAt - Date.now()) / 1000)
+    if (ttlSeconds > 0) {
+      await redis.set(fullNonceKey, "1", { ex: ttlSeconds })
+    }
   }
 
   return { valid: true, reason: "ok" as const }

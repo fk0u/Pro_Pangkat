@@ -12,15 +12,15 @@ import { Settings, Info } from "lucide-react"
 import { motion } from "framer-motion"
 import { TwoFactorSetup } from "@/components/two-factor-setup"
 
-export default function SettingsPage() {
+export default function pegawaiSettingsPage() {
   const [appName, setAppName] = useState("ProPangkat")
   const [year, setYear] = useState("2025")
   const [language, setLanguage] = useState("id")
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [notifEnabled, setNotifEnabled] = useState(true)
   const [theme, setTheme] = useState("light")
-  const [adminName, setAdminName] = useState("Admin BKD")
-  const [adminEmail, setAdminEmail] = useState("admin@propangkat.go.id")
+  const [adminName, setAdminName] = useState("Pengguna")
+  const [adminEmail, setAdminEmail] = useState("user@propangkat.go.id")
   const [adminPassword, setAdminPassword] = useState("")
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,7 +45,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <DashboardLayout userType="admin">
+    <DashboardLayout userType="pegawai">
       <div className="space-y-6">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
@@ -70,10 +70,10 @@ export default function SettingsPage() {
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Profil Admin */}
+          {/* Profil Pengguna */}
           <Card>
             <CardHeader>
-              <CardTitle>Profil Admin</CardTitle>
+              <CardTitle>Profil Pengguna</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>

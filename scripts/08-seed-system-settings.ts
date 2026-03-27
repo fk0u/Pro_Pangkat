@@ -7,7 +7,7 @@ async function main() {
     // General settings
     { category: 'general', key: 'applicationName', value: 'Pro Pangkat', description: 'Nama aplikasi' },
     { category: 'general', key: 'applicationDescription', value: 'Sistem pengelolaan kenaikan pangkat terintegrasi', description: 'Deskripsi aplikasi' },
-    { category: 'general', key: 'logoUrl', value: 'https://bkd.kaltimprov.go.id/assets/portal/images/kaltim.png', description: 'URL logo aplikasi' },
+    { category: 'general', key: 'logoUrl', value: 'https://kaltimprov.go.id/images/logofavicon.png', description: 'URL logo aplikasi' },
     
     // Security settings
     { category: 'security', key: 'twoFactorAuth', value: 'false', description: 'Aktifkan autentikasi dua faktor' },

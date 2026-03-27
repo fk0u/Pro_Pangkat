@@ -1,57 +1,47 @@
 import crypto from "crypto"
+import { redis } from "./redis"
 
-type PasswordResetRecord = {
-  tokenHash: string
-  expiresAt: number
-}
-
-const RESET_TOKEN_TTL_MS = 10 * 60 * 1000
-const resetStore = new Map<string, PasswordResetRecord>()
-
-function cleanupResetStore(now: number) {
-  for (const [key, value] of resetStore.entries()) {
-    if (value.expiresAt <= now) {
-      resetStore.delete(key)
-    }
-  }
-}
+const RESET_TOKEN_TTL_SEC = 10 * 60 // 10 minutes
+const RESET_STORE_PREFIX = "propangkat:pwd_reset:"
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex")
 }
 
-export function issuePasswordResetToken(nip: string) {
-  const now = Date.now()
-  cleanupResetStore(now)
-
+export async function issuePasswordResetToken(nip: string) {
   const token = String(Math.floor(100000 + Math.random() * 900000))
-  resetStore.set(nip, {
-    tokenHash: hashToken(token),
-    expiresAt: now + RESET_TOKEN_TTL_MS,
-  })
+  const tokenHash = hashToken(token)
+
+  // Use Redis to store the hashed token with a TTL of 10 minutes
+  await redis.set(`${RESET_STORE_PREFIX}${nip}`, tokenHash, { ex: RESET_TOKEN_TTL_SEC })
 
   return token
 }
 
-export function consumePasswordResetToken(nip: string, token: string) {
-  const now = Date.now()
-  cleanupResetStore(now)
+export async function consumePasswordResetToken(nip: string, token: string) {
+  const fullKey = `${RESET_STORE_PREFIX}${nip}`
 
-  const record = resetStore.get(nip)
-  if (!record) {
-    return { valid: false, reason: "token-not-found" as const }
+  // Fetch from redis
+  const storedHash = await redis.get<string>(fullKey)
+  
+  if (!storedHash) {
+    return { valid: false, reason: "token-not-found-or-expired" as const }
   }
 
-  if (record.expiresAt <= now) {
-    resetStore.delete(nip)
-    return { valid: false, reason: "token-expired" as const }
-  }
-
+  // Verify the cryptographically signed hash preventing timing attacks
   const providedHash = hashToken(token)
-  if (!crypto.timingSafeEqual(Buffer.from(providedHash), Buffer.from(record.tokenHash))) {
-    return { valid: false, reason: "token-invalid" as const }
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(providedHash), Buffer.from(storedHash))) {
+      return { valid: false, reason: "token-invalid" as const }
+    }
+  } catch (e) {
+    // Failsafe if lengths differ
+    if (providedHash !== storedHash) {
+      return { valid: false, reason: "token-invalid" as const }
+    }
   }
 
-  resetStore.delete(nip)
+  // Consume: Delete token exactly after usage
+  await redis.del(fullKey)
   return { valid: true, reason: "ok" as const }
 }

@@ -337,28 +337,38 @@ export async function GET(request: NextRequest) {
       }, {})
     };
 
-    // Transform pegawai data with proposals information
-    const transformedData = await Promise.all(pegawaiList.map(async pegawai => {
+    // Transform pegawai data with proposals information avoiding N+1 queries
+    const pegawaiIds = pegawaiList.map((p) => p.id);
+    
+    // Batch fetch all proposals for the current page of pegawai
+    const allProposals = await prisma.promotionProposal.findMany({
+      where: { pegawaiId: { in: pegawaiIds } },
+      select: {
+        id: true,
+        pegawaiId: true,
+        status: true,
+        updatedAt: true
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // Create maps for fast lookup
+    const proposalsByPegawai = new Map<string, typeof allProposals>();
+    pegawaiList.forEach((p) => proposalsByPegawai.set(p.id, []));
+    allProposals.forEach((p) => {
+      const arr = proposalsByPegawai.get(p.pegawaiId) || [];
+      arr.push(p);
+      proposalsByPegawai.set(p.pegawaiId, arr);
+    });
+
+    const transformedData = pegawaiList.map(pegawai => {
       try {
-        // Get proposal count and status for this pegawai
-        const proposals = await prisma.promotionProposal.findMany({
-          where: { pegawaiId: pegawai.id },
-          orderBy: { updatedAt: 'desc' },
-          take: 1,
-        });
+        // Get pre-fetched proposals for this pegawai
+        const proposals = proposalsByPegawai.get(pegawai.id) || [];
+        const totalProposals = proposals.length;
+        const activeProposals = proposals.filter((p) => !['SELESAI', 'DITOLAK'].includes(p.status)).length;
+        const latestProposal = proposals[0] || null;
         
-        const totalProposals = await prisma.promotionProposal.count({
-          where: { pegawaiId: pegawai.id }
-        });
-        
-        const activeProposals = await prisma.promotionProposal.count({
-          where: { 
-            pegawaiId: pegawai.id,
-            status: { notIn: ['SELESAI', 'DITOLAK'] }
-          }
-        });
-        
-        const latestProposal = proposals[0];
         let proposalStatus = 'Belum Ada Usulan';
         
         if (latestProposal) {
@@ -415,7 +425,7 @@ export async function GET(request: NextRequest) {
           updatedAt: pegawai.updatedAt.toISOString()
         };
       }
-    }));
+    });
 
     // Get all available unit kerja and jabatan for filtering
     const unitKerjaList = await prisma.unitKerja.findMany({

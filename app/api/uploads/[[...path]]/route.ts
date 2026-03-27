@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { join } from "path";
+import { join, resolve, sep } from "path";
 import { existsSync } from "fs";
 import { readFile, stat } from "fs/promises";
 
@@ -20,10 +20,15 @@ export async function GET(
     // Ambil path file dari parameter
     const filePath = params.path.join('/');
     
-    // Bangun path lengkap ke file fisik
-    const uploadsDir = join(process.cwd(), 'uploads');
-    const fullFilePath = join(uploadsDir, filePath);
+    // Bangun path lengkap ke file fisik dan cegah path traversal
+    const uploadsDir = resolve(process.cwd(), 'uploads');
+    const fullFilePath = resolve(uploadsDir, filePath);
     
+    // Pastikan path hasil resolve masih berada di dalam uploads_dir (Security: Path Traversal fix)
+    if (!fullFilePath.startsWith(uploadsDir + sep)) {
+      return NextResponse.json({ error: "Forbidden: Invalid file path" }, { status: 403 });
+    }
+
     console.log(`Direct file access: ${fullFilePath}`);
     
     // Periksa apakah file ada

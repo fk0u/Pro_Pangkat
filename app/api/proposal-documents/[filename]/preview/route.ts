@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { readFile } from "fs/promises"
-import { join } from "path"
+import { join, resolve, sep } from "path"
 
 export async function GET(
   request: NextRequest,
@@ -40,8 +40,14 @@ export async function GET(
 
     // For preview, we'll return the file content
     try {
-      const uploadsDir = join(process.cwd(), 'uploads')
-      const filePath = join(uploadsDir, document.fileUrl.replace('/uploads/', ''))
+      const uploadsDir = resolve(process.cwd(), 'uploads')
+      const filePath = resolve(uploadsDir, document.fileUrl.replace('/uploads/', ''))
+      
+      // Ensure the resolved path is within the uploads directory
+      if (!filePath.startsWith(uploadsDir + sep)) {
+        return NextResponse.json({ error: "Forbidden: Invalid file path" }, { status: 403 })
+      }
+
       const fileBuffer = await readFile(filePath)
       
       // Determine content type based on file extension

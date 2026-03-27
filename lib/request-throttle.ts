@@ -1,9 +1,6 @@
-type ThrottleState = {
-  count: number
-  resetAt: number
-}
+import { redis } from './redis'
 
-type ThrottleResult = {
+export type ThrottleResult = {
   allowed: boolean
   limit: number
   remaining: number
@@ -11,53 +8,58 @@ type ThrottleResult = {
   resetAt: number
 }
 
-const throttleStore = new Map<string, ThrottleState>()
+// Prefix to separate from other domains
+const THROTTLE_PREFIX = 'propangkat:throttle:'
 
-function cleanup(now: number) {
-  for (const [key, state] of throttleStore.entries()) {
-    if (state.resetAt <= now) {
-      throttleStore.delete(key)
-    }
-  }
-}
-
-export function consumeThrottle(key: string, limit: number, windowMs: number): ThrottleResult {
+export async function consumeThrottle(key: string, limit: number, windowMs: number): Promise<ThrottleResult> {
+  const fullKey = `${THROTTLE_PREFIX}${key}`
   const now = Date.now()
-  cleanup(now)
 
-  const existing = throttleStore.get(key)
+  // 1. Get raw string value from Redis (it stores everything as strings over Upstash REST)
+  const existingCountStr = await redis.get<string | number>(fullKey)
+  
+  // Try to parse it to a number, defaulting to 0 if not exists
+  let currentCount = 0
+  if (existingCountStr !== null && existingCountStr !== undefined) {
+      currentCount = typeof existingCountStr === 'number' ? existingCountStr : parseInt(existingCountStr as string, 10)
+  }
 
-  if (!existing || existing.resetAt <= now) {
-    const resetAt = now + windowMs
-    throttleStore.set(key, { count: 1, resetAt })
+  // Calculate resetting logic if it doesn't exist
+  if (currentCount === 0 || isNaN(currentCount)) {
+    const expireInSeconds = Math.ceil(windowMs / 1000)
+    await redis.set(fullKey, 1, { ex: expireInSeconds })
+    
     return {
       allowed: true,
       limit,
       remaining: Math.max(0, limit - 1),
       retryAfterMs: 0,
-      resetAt,
+      resetAt: now + windowMs, // Approx
     }
   }
 
-  if (existing.count >= limit) {
+  if (currentCount >= limit) {
+    // Already exhausted
+    // We cannot accurately get `retryAfterMs` dynamically without the PTTL command in generic mock redis,
+    // so we approximate it via standard window. Usually Upstash provides TTL but to keep fallback simple:
     return {
       allowed: false,
       limit,
       remaining: 0,
-      retryAfterMs: Math.max(0, existing.resetAt - now),
-      resetAt: existing.resetAt,
+      retryAfterMs: windowMs, 
+      resetAt: now + windowMs,
     }
   }
 
-  existing.count += 1
-  throttleStore.set(key, existing)
+  // Still within limit, safely increment
+  await redis.incr(fullKey)
 
   return {
     allowed: true,
     limit,
-    remaining: Math.max(0, limit - existing.count),
+    remaining: Math.max(0, limit - (currentCount + 1)),
     retryAfterMs: 0,
-    resetAt: existing.resetAt,
+    resetAt: now + windowMs,
   }
 }
 

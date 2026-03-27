@@ -1,3 +1,5 @@
+import { redis } from "./redis"
+
 type LoginAttemptState = {
   failedAttempts: number
   firstFailureAt: number
@@ -8,35 +10,19 @@ const ATTEMPT_WINDOW_MS = 10 * 60 * 1000
 const BLOCK_DURATION_MS = 10 * 60 * 1000
 const MAX_FAILED_ATTEMPTS = 5
 
-const loginAttempts = new Map<string, LoginAttemptState>()
-
-function cleanup() {
-  const now = Date.now()
-
-  for (const [key, value] of loginAttempts.entries()) {
-    const isExpired = now - value.firstFailureAt > ATTEMPT_WINDOW_MS && !value.blockedUntil
-    const blockExpired = value.blockedUntil && value.blockedUntil <= now
-
-    if (isExpired || blockExpired) {
-      loginAttempts.delete(key)
-    }
-  }
-}
-
 export function getRateLimitKey(ip: string, nip: string) {
-  return `${ip}::${nip}`
+  return `login:rate:${ip}::${nip}`
 }
 
-export function canAttemptLogin(rateKey: string) {
-  cleanup()
-
-  const state = loginAttempts.get(rateKey)
+export async function canAttemptLogin(rateKey: string) {
+  const state = await redis.get<LoginAttemptState>(rateKey)
   const now = Date.now()
 
   if (!state) {
     return { allowed: true, retryAfterMs: 0 }
   }
 
+  // If the record exists but is outside the attempt window and not blocked, it's virtually empty
   if (state.blockedUntil && state.blockedUntil > now) {
     return { allowed: false, retryAfterMs: state.blockedUntil - now }
   }
@@ -44,17 +30,15 @@ export function canAttemptLogin(rateKey: string) {
   return { allowed: true, retryAfterMs: 0 }
 }
 
-export function registerFailedLogin(rateKey: string) {
-  cleanup()
-
+export async function registerFailedLogin(rateKey: string) {
   const now = Date.now()
-  const current = loginAttempts.get(rateKey)
+  let current = await redis.get<LoginAttemptState>(rateKey)
 
   if (!current || now - current.firstFailureAt > ATTEMPT_WINDOW_MS) {
-    loginAttempts.set(rateKey, {
+    await redis.set(rateKey, {
       failedAttempts: 1,
       firstFailureAt: now,
-    })
+    }, { ex: Math.ceil(ATTEMPT_WINDOW_MS / 1000) })
     return
   }
 
@@ -64,13 +48,16 @@ export function registerFailedLogin(rateKey: string) {
     failedAttempts,
   }
 
+  let expirySeconds = Math.ceil(ATTEMPT_WINDOW_MS / 1000)
+
   if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
     nextState.blockedUntil = now + BLOCK_DURATION_MS
+    expirySeconds = Math.ceil((nextState.blockedUntil - now) / 1000)
   }
 
-  loginAttempts.set(rateKey, nextState)
+  await redis.set(rateKey, nextState, { ex: expirySeconds })
 }
 
-export function resetLoginRateLimit(rateKey: string) {
-  loginAttempts.delete(rateKey)
+export async function resetLoginRateLimit(rateKey: string) {
+  await redis.del(rateKey)
 }

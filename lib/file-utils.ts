@@ -18,9 +18,30 @@ export async function saveUploadedFile(file: File, directory: string, filename?:
     const finalFilename = filename || `${Date.now()}_${file.name}`
     const filepath = join(uploadDir, finalFilename)
 
-    // Save file
+    // Verify buffer magic bytes for security
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
+
+    let isValidMagicNumber = false;
+    if (buffer.length > 8) {
+      const hex = buffer.toString('hex', 0, 8).toUpperCase();
+      if (hex.startsWith('255044462D')) {
+        isValidMagicNumber = true; // PDF
+      } else if (hex.startsWith('FFD8FF')) {
+        isValidMagicNumber = true; // JPEG
+      } else if (hex.startsWith('89504E470D0A1A0A')) {
+        isValidMagicNumber = true; // PNG
+      }
+    }
+    
+    if (!isValidMagicNumber) {
+      return {
+        success: false,
+        error: "File type signature is invalid. Ensure you are uploading a valid PDF, JPEG, or PNG."
+      }
+    }
+
+    // Save file
     await writeFile(filepath, buffer)
 
     return {

@@ -75,7 +75,7 @@ export function DashboardHeader({ userType, userName = "User" }: DashboardHeader
               <User className="mr-2 h-4 w-4" />
               <span>Profil</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push(`/${userType}/settings`)}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Pengaturan</span>
             </DropdownMenuItem>

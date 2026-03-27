@@ -14,15 +14,7 @@ const loginSchema = z.object({
   captchaValue: z.string().min(1, "Captcha is required"),
   captchaHash: z.string().optional(),
   captchaToken: z.string().optional(),
-  userType: z.enum(["pegawai", "operator", "admin", "operator-sekolah"]).optional(),
 })
-
-const userTypeToRole: Record<string, string> = {
-  pegawai: "PEGAWAI",
-  operator: "OPERATOR",
-  admin: "ADMIN",
-  "operator-sekolah": "OPERATOR_SEKOLAH",
-}
 
 function getClientIp(req: NextRequest) {
   return getClientIpFromRequestHeaders(req.headers)
@@ -31,7 +23,7 @@ function getClientIp(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req)
-    const requestThrottle = consumeThrottle(`login:request:${ip}`, 20, 60_000)
+    const requestThrottle = await consumeThrottle(`login:request:${ip}`, 20, 60_000)
     if (!requestThrottle.allowed) {
       const retryAfterSeconds = Math.ceil(requestThrottle.retryAfterMs / 1000)
       return NextResponse.json({
@@ -54,14 +46,14 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    const { nip, password, captchaValue, captchaHash, captchaToken, userType } = parsed.data
+    const { nip, password, captchaValue, captchaHash, captchaToken } = parsed.data
 
     const token = captchaToken || captchaHash
     if (!token) {
       return NextResponse.json({ message: "CAPTCHA token wajib diisi" }, { status: 400 })
     }
 
-    const captchaResult = verifyCaptchaToken(captchaValue, token, { consume: true })
+    const captchaResult = await verifyCaptchaToken(captchaValue, token, { consume: true })
     if (!captchaResult.valid) {
       return NextResponse.json({ message: "CAPTCHA tidak valid atau kedaluwarsa" }, { status: 400 })
     }
@@ -69,7 +61,7 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get('user-agent') || 'unknown'
     const rateKey = getRateLimitKey(ip, nip)
 
-    const rateLimitState = canAttemptLogin(rateKey)
+    const rateLimitState = await canAttemptLogin(rateKey)
     if (!rateLimitState.allowed) {
       const retryAfterSeconds = Math.ceil(rateLimitState.retryAfterMs / 1000)
       return NextResponse.json({
@@ -82,7 +74,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (!user) {
-      registerFailedLogin(rateKey)
+        await registerFailedLogin(rateKey)
       await logLogin('unknown', false, { 
         nip, 
         reason: 'User not found',
@@ -96,7 +88,7 @@ export async function POST(req: NextRequest) {
     const isPasswordValid = await comparePasswords(password, user.password)
 
     if (!isPasswordValid) {
-      registerFailedLogin(rateKey)
+        await registerFailedLogin(rateKey)
       await logLogin(user.id, false, { 
         nip: user.nip, 
         reason: 'Invalid password',
@@ -107,24 +99,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "NIP atau password salah" }, { status: 401 })
     }
 
-    if (userType) {
-      const expectedRole = userTypeToRole[userType]
-      if (expectedRole && user.role !== expectedRole) {
-        registerFailedLogin(rateKey)
-        await logLogin(user.id, false, {
-          nip: user.nip,
-          reason: 'Role mismatch',
-          expectedRole,
-          actualRole: user.role,
-          ip,
-          userAgent,
-        })
-
-        return NextResponse.json({ message: "Akun tidak sesuai dengan jenis login yang dipilih" }, { status: 403 })
-      }
-    }
-
-    resetLoginRateLimit(rateKey)
+    await resetLoginRateLimit(rateKey)
 
     try {
       await logLogin(user.id, true, {
@@ -149,6 +124,17 @@ export async function POST(req: NextRequest) {
       mustChangePassword: user.mustChangePassword,
     }
     session.isLoggedIn = true
+    session.loginTime = Date.now()
+    session.lastActivity = Date.now()
+    
+    // Check if 2FA is required/enabled
+    if (user.isTwoFactorEnabled) {
+      session.pending2Fa = true
+      session.isLoggedIn = false // Override to prevent full access until 2FA completes
+      await session.save()
+      return NextResponse.json({ require2FA: true }, { status: 200 })
+    }
+
     await session.save()
 
     return NextResponse.json({ user: session.user }, { status: 200 })

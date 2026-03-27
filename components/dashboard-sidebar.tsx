@@ -214,7 +214,7 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
                   >
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white dark:bg-gray-700 shadow-sm">
                       <Image 
-                        src="https://bkd.kaltimprov.go.id/assets/portal/images/kaltim.png" 
+                        src="https://kaltimprov.go.id/images/logofavicon.png" 
                         alt="Logo Kaltim"
                         width={32}
                         height={32}

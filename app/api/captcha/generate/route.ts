@@ -69,7 +69,7 @@ function generateCaptchaImage(text: string) {
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIpFromRequestHeaders(req.headers)
-    const throttle = consumeThrottle(`captcha:generate:${ip}`, 30, 60_000)
+    const throttle = await consumeThrottle(`captcha:generate:${ip}`, 30, 60_000)
 
     if (!throttle.allowed) {
       const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)

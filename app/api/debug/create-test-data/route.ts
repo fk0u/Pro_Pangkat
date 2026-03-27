@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma"
 import { hashPassword } from "@/lib/password"
 
 export async function POST(req: NextRequest) {
+  // SECURITY: Disable debug routes in production
+  if (process.env.NODE_ENV === 'production') {
+    return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  }
+
   try {
     console.log('🌱 Creating operator sekolah test data...')
 

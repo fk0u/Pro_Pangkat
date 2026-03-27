@@ -28,7 +28,7 @@ import {
   X
 } from "lucide-react"
 
-interface OperatorProfile {
+interface AdminProfile {
   id: string
   nip: string
   nama: string
@@ -61,8 +61,8 @@ interface OperatorProfile {
   }>
 }
 
-export default function OperatorProfilPage() {
-  const [profile, setProfile] = useState<OperatorProfile | null>(null)
+export default function AdminProfilPage() {
+  const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -85,7 +85,7 @@ export default function OperatorProfilPage() {
   const fetchProfile = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/operator/profile')
+      const response = await fetch('/api/admin/profile')
       
       if (response.ok) {
         const result = await response.json()
@@ -168,7 +168,7 @@ export default function OperatorProfilPage() {
         Object.assign(updateData, { password: formData.password });
       }
       
-      const response = await fetch('/api/operator/profile', {
+      const response = await fetch('/api/admin/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
@@ -258,7 +258,7 @@ export default function OperatorProfilPage() {
 
   if (loading) {
     return (
-      <DashboardLayout userType="operator">
+      <DashboardLayout userType="admin">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -271,7 +271,7 @@ export default function OperatorProfilPage() {
 
   if (!profile) {
     return (
-      <DashboardLayout userType="operator">
+      <DashboardLayout userType="admin">
         <div className="text-center py-8">
           <p className="text-gray-500">Profil tidak ditemukan</p>
         </div>
@@ -280,7 +280,7 @@ export default function OperatorProfilPage() {
   }
 
   return (
-    <DashboardLayout userType="operator">
+    <DashboardLayout userType="admin">
       <div className="space-y-6">
         {/* Header */}
         <motion.div 

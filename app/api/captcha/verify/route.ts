@@ -5,7 +5,7 @@ import { consumeThrottle, getClientIpFromRequestHeaders } from "@/lib/request-th
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIpFromRequestHeaders(req.headers)
-    const throttle = consumeThrottle(`captcha:verify:${ip}`, 60, 60_000)
+    const throttle = await consumeThrottle(`captcha:verify:${ip}`, 60, 60_000)
 
     if (!throttle.allowed) {
       const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = verifyCaptchaToken(input, token, { consume: false });
+    const result = await verifyCaptchaToken(input, token, { consume: false });
 
     if (result.valid) {
       return NextResponse.json({

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Minimal profile data (statistics and activities disabled temporarily)
-    const profile = {
+    const profile = { statistics: { totalHandledProposals: 0, totalUnitKerja: 0, totalPegawai: 0, workStats: [] }, activities: [],
       id: user.id,
       nip: user.nip || '',
       nama: user.name || '',
@@ -161,7 +161,7 @@ export async function PUT(request: NextRequest) {
       const uk = await prisma.unitKerja.findUnique({ where: { id: updatedUser.unitKerjaId }, select: { nama: true } })
       newUnitKerjaName = uk?.nama || ''
     }
-    const profile = { id: updatedUser.id, nip: updatedUser.nip||'', nama: updatedUser.name||'', email:updatedUser.email||'', noHp:updatedUser.phone||'', alamat:updatedUser.address||'', jabatan:updatedUser.jabatan||'', golongan:updatedUser.golongan||'', jenisJabatan:updatedUser.jenisJabatan||'', unitKerja:newUnitKerjaName, wilayah:updatedUser.wilayah||'', profilePictureUrl:updatedUser.profilePictureUrl, createdAt:updatedUser.createdAt, updatedAt:updatedUser.updatedAt }
+    const profile = { statistics: { totalHandledProposals: 0, totalUnitKerja: 0, totalPegawai: 0, workStats: [] }, activities: [], id: updatedUser.id, nip: updatedUser.nip||'', nama: updatedUser.name||'', email:updatedUser.email||'', noHp:updatedUser.phone||'', alamat:updatedUser.address||'', jabatan:updatedUser.jabatan||'', golongan:updatedUser.golongan||'', jenisJabatan:updatedUser.jenisJabatan||'', unitKerja:newUnitKerjaName, wilayah:updatedUser.wilayah||'', profilePictureUrl:updatedUser.profilePictureUrl, createdAt:updatedUser.createdAt, updatedAt:updatedUser.updatedAt }
 
     return NextResponse.json({
       success: true,

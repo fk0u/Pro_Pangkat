@@ -22,7 +22,8 @@ export async function POST(req: Request) {
     const { step } = body
 
     if (step === "request") {
-      const throttle = consumeThrottle(`forgot:request:${ip}`, 8, 10 * 60_000)
+      const targetNip = body.nip || 'anonymous'
+      const throttle = await consumeThrottle(`forgot:request:${ip}:${targetNip}`, 8, 10 * 60_000)
       if (!throttle.allowed) {
         const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)
         return NextResponse.json({ message: `Terlalu banyak request. Coba lagi dalam ${retryAfterSeconds} detik.` }, { status: 429 })
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
         return NextResponse.json(genericResponse, { status: 200 })
       }
 
-      const resetToken = issuePasswordResetToken(nip)
+      const resetToken = await issuePasswordResetToken(nip)
 
       // In development only, expose token for local testing.
       if (isDevelopmentRuntime()) {
@@ -64,7 +65,8 @@ export async function POST(req: Request) {
       return NextResponse.json(genericResponse, { status: 200 })
 
     } else if (step === "reset") {
-      const throttle = consumeThrottle(`forgot:reset:${ip}`, 10, 10 * 60_000)
+      const targetNip = body.nip || 'anonymous'
+      const throttle = await consumeThrottle(`forgot:reset:${ip}:${targetNip}`, 10, 10 * 60_000)
       if (!throttle.allowed) {
         const retryAfterSeconds = Math.ceil(throttle.retryAfterMs / 1000)
         return NextResponse.json({ message: `Terlalu banyak percobaan reset. Coba lagi dalam ${retryAfterSeconds} detik.` }, { status: 429 })
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
 
       const { nip, token, newPassword } = parsed.data
 
-      const tokenResult = consumePasswordResetToken(nip, token || "")
+      const tokenResult = await consumePasswordResetToken(nip, token || "")
       if (!tokenResult.valid) {
         return NextResponse.json({ message: "Token tidak valid" }, { status: 400 })
       }
