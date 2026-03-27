@@ -1,178 +1,217 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { Settings, Info } from "lucide-react"
-import { motion } from "framer-motion"
-import { TwoFactorSetup } from "@/components/two-factor-setup"
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Palette, Shield, Bell, LayoutList, Save } from "lucide-react";
+import { TwoFactorSetup } from "@/components/two-factor-setup";
 
-export default function operatorSettingsPage() {
-  const [appName, setAppName] = useState("ProPangkat")
-  const [year, setYear] = useState("2025")
-  const [language, setLanguage] = useState("id")
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [notifEnabled, setNotifEnabled] = useState(true)
-  const [theme, setTheme] = useState("light")
-  const [adminName, setAdminName] = useState("Pengguna")
-  const [adminEmail, setAdminEmail] = useState("user@propangkat.go.id")
-  const [adminPassword, setAdminPassword] = useState("")
+export default function OperatorSettingsPage() {
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setLogoFile(e.target.files[0])
-    }
-  }
-
-  const handleSaveProfile = () => {
-    // Placeholder: Kirim ke backend dengan fetch/axios nanti
-    alert(`Profil disimpan:\nNama: ${adminName}\nEmail: ${adminEmail}\nPassword: ${adminPassword}`)
-  }
-
-  const handleSavePreference = () => {
-    // Placeholder: Kirim ke backend dengan fetch/axios nanti
-    alert(`Preferensi disimpan:\nNotifikasi: ${notifEnabled ? "Aktif" : "Nonaktif"}\nTema: ${theme}`)
-  }
-
-  const handleSaveSystem = () => {
-    // Placeholder: Kirim ke backend dengan fetch/axios nanti
-    alert(`Pengaturan sistem disimpan:\nNama Aplikasi: ${appName}\nTahun: ${year}\nBahasa: ${language}\nLogo: ${logoFile ? logoFile.name : "Tidak diubah"}`)
-  }
+  const handleSave = () => {
+    setIsSaving(true);
+    setTimeout(() => setIsSaving(false), 1000);
+  };
 
   return (
     <DashboardLayout userType="operator">
-      <div className="space-y-6">
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <div className="bg-gradient-to-r from-red-700 to-rose-600 rounded-2xl p-6 text-white">
-            <div className="flex items-center mb-4">
-              <Settings className="h-8 w-8 mr-3" />
-              <div>
-                <h1 className="text-3xl font-bold">Pengaturan Sistem</h1>
-                <p className="text-sky-100">Periode Agustus 2025</p>
-              </div>
-            </div>
-
-            <div className="bg-white/10 rounded-lg p-4">
-              <div className="flex items-center">
-                <Info className="h-5 w-5 mr-3 text-sky-200" />
-                <p className="text-sky-100">
-                  Ini adalah halaman untuk melihat pengaturan sistem web ProPangkat.
-                </p>
-              </div>
-            </div>
-          </div>
+      <div className="container mx-auto p-6 max-w-5xl">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <h1 className="text-3xl font-bold tracking-tight">Pengaturan Operator</h1>
+          <p className="text-muted-foreground mt-2">
+            Kelola preferensi akun, tampilan, dan keamanan untuk peran Operator BKD.
+          </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Profil Pengguna */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Profil Pengguna</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Nama</Label>
-                <Input
-                  placeholder="Masukkan nama lengkap"
-                  value={adminName}
-                  onChange={(e) => setAdminName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Email</Label>
-                <Input
-                  placeholder="Masukkan email"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Password Baru</Label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleSaveProfile}>Simpan Perubahan</Button>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="tampilan" className="space-y-6">
+          <TabsList className="grid grid-cols-4 w-full h-auto p-1 bg-muted">
+            <TabsTrigger value="tampilan" className="py-3 flex items-center gap-2">
+              <Palette className="w-4 h-4" />
+              <span className="hidden sm:inline">Tampilan</span>
+            </TabsTrigger>
+            <TabsTrigger value="verifikasi" className="py-3 flex items-center gap-2">
+              <LayoutList className="w-4 h-4" />
+              <span className="hidden sm:inline">Pref. Verifikasi</span>
+            </TabsTrigger>
+            <TabsTrigger value="notifikasi" className="py-3 flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              <span className="hidden sm:inline">Notifikasi</span>
+            </TabsTrigger>
+            <TabsTrigger value="keamanan" className="py-3 flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              <span className="hidden sm:inline">Keamanan</span>
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Preferensi */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Preferensi</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Notifikasi Email</Label>
-                <Switch checked={notifEnabled} onCheckedChange={setNotifEnabled} />
-              </div>
-              <div>
-                <Label>Tema</Label>
-                <Select value={theme} onValueChange={setTheme}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih tema" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Terang</SelectItem>
-                    <SelectItem value="dark">Gelap</SelectItem>
-                    <SelectItem value="system">Ikuti Sistem</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleSavePreference}>Simpan Preferensi</Button>
-            </CardContent>
-          </Card>
+          {/* Tampilan */}
+          <TabsContent value="tampilan">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preferensi Tipe Tampilan</CardTitle>
+                  <CardDescription>Sesuaikan tema dan bahasa aplikasi.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Tema Gelap</Label>
+                      <p className="text-sm text-muted-foreground">Aktifkan tampilan mode gelap.</p>
+                    </div>
+                    <Switch />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Bahasa</Label>
+                    <Select defaultValue="id">
+                      <SelectTrigger className="w-full sm:w-[300px]">
+                        <SelectValue placeholder="Pilih Bahasa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="id">Bahasa Indonesia</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </TabsContent>
 
-          {/* Pengaturan 2FA */}
-          <div className="md:col-span-2">
-            <TwoFactorSetup />
-          </div>
+          {/* Verifikasi */}
+          <TabsContent value="verifikasi">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preferensi Verifikasi</CardTitle>
+                  <CardDescription>Atur cara Anda memverifikasi usulan.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Tampilkan Usulan Otomatis</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Buka dokumen usulan berikutnya secara otomatis setelah selesai memverifikasi.
+                      </p>
+                    </div>
+                    <Switch defaultChecked />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Batas Item per Halaman</Label>
+                    <Select defaultValue="20">
+                      <SelectTrigger className="w-full sm:w-[300px]">
+                        <SelectValue placeholder="Pilih batas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 Item</SelectItem>
+                        <SelectItem value="20">20 Item</SelectItem>
+                        <SelectItem value="50">50 Item</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </TabsContent>
 
-          {/* Pengaturan Sistem Web */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Pengaturan Sistem Web</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Nama Aplikasi</Label>
-                <Input value={appName} onChange={(e) => setAppName(e.target.value)} />
-              </div>
-              <div>
-                <Label>Tahun Aktif</Label>
-                <Input value={year} onChange={(e) => setYear(e.target.value)} />
-              </div>
-              <div>
-                <Label>Logo Aplikasi</Label>
-                <Input type="file" accept="image/*" onChange={handleFileChange} />
-                {logoFile && <p className="text-sm text-muted-foreground mt-1">File dipilih: {logoFile.name}</p>}
-              </div>
-              <div>
-                <Label>Bahasa Default</Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih Bahasa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="id">Indonesia</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleSaveSystem}>Simpan Pengaturan Sistem</Button>
-            </CardContent>
-          </Card>
-        </div>
+          {/* Notifikasi */}
+          <TabsContent value="notifikasi">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pengaturan Notifikasi</CardTitle>
+                  <CardDescription>Pilih notifikasi yang ingin Anda terima.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Notifikasi Usulan Masuk</Label>
+                      <p className="text-sm text-muted-foreground">Kirim peringatan saat ada usulan baru dari OPD/Sekolah.</p>
+                    </div>
+                    <Switch defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Notifikasi Pesan Baru</Label>
+                      <p className="text-sm text-muted-foreground">Kirim peringatan saat ada pesan atau catatan baru.</p>
+                    </div>
+                    <Switch defaultChecked />
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </TabsContent>
+
+          {/* Keamanan */}
+          <TabsContent value="keamanan">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              {/* Password */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ubah Password</CardTitle>
+                  <CardDescription>Perbarui kata sandi akun Anda secara berkala untuk menjaga keamanan.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="current-pass">Password Saat Ini</Label>
+                    <Input id="current-pass" type="password" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-pass">Password Baru</Label>
+                    <Input id="new-pass" type="password" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-pass">Konfirmasi Password Baru</Label>
+                    <Input id="confirm-pass" type="password" />
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button>Perbarui Password</Button>
+                </CardFooter>
+              </Card>
+
+              {/* 2FA */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Dua Faktor Autentikasi (2FA)</CardTitle>
+                  <CardDescription>Tambahkan lapisan keamanan ekstra ke akun Anda.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <TwoFactorSetup />
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
-  )
+  );
 }
