@@ -1,8 +1,4 @@
-"use client"
-
-import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { useToast } from "@/hooks/use-toast"
@@ -11,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { User, KeyRound, LogIn, Loader2 } from "lucide-react"
+import { User, KeyRound, LogIn, Loader2, RefreshCw } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export function EnhancedLoginForm() {
   const router = useRouter()
@@ -23,10 +20,32 @@ export function EnhancedLoginForm() {
   const [nip, setNip] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [captchaImage, setCaptchaImage] = useState("")
+  const [captchaToken, setCaptchaToken] = useState("")
+  const [captchaInput, setCaptchaInput] = useState("")
   
   // State untuk modal change password
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
+
+  const fetchCaptcha = async () => {
+    try {
+      const response = await fetch("/api/captcha")
+      const data = await response.json()
+      setCaptchaImage(data.image)
+      setCaptchaToken(data.token)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load CAPTCHA.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  useEffect(() => {
+    fetchCaptcha()
+  }, [])
 
   const getTitle = () => {
     switch (userType) {
@@ -57,8 +76,8 @@ export function EnhancedLoginForm() {
         body: JSON.stringify({ 
           nip, 
           password,
-          captchaValue: "DEMO12345", 
-          captchaHash: "not-needed-for-demo",
+          captchaValue: captchaInput, 
+          captchaToken: captchaToken,
           userType 
         }),
       })
@@ -66,6 +85,8 @@ export function EnhancedLoginForm() {
       const data = await response.json()
 
       if (!response.ok) {
+        // a failed login attempt should refresh the captcha
+        fetchCaptcha()
         throw new Error(data.message || "Login gagal")
       }
 
@@ -147,6 +168,26 @@ export function EnhancedLoginForm() {
                     disabled={isLoading}
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="captcha">Captcha</Label>
+                <div className="flex items-center space-x-2">
+                  <div className="relative">
+                    {captchaImage && <Image src={captchaImage} alt="Captcha" width={150} height={50} />}
+                  </div>
+                  <Button variant="outline" size="icon" onClick={fetchCaptcha}>
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Input
+                  id="captcha"
+                  type="text"
+                  placeholder="Enter captcha"
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
               </div>
               <Button type="submit" className="w-full bg-sky-600 hover:bg-sky-700" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}

@@ -286,6 +286,13 @@ export default function PegawaiDashboardPage() {
       href: "/pegawai/profil",
       color: "bg-orange-500",
     },
+    {
+      title: "Keamanan Akun",
+      description: "Aktifkan Two-Factor Authentication (2FA)",
+      icon: User,
+      href: "/pegawai/2fa",
+      color: "bg-red-500",
+    },
   ]
 
   if (isLoading) {

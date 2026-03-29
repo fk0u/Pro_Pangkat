@@ -49,7 +49,7 @@ export default function SecureDocumentViewer({
         title="Document Viewer"
       />
       
-      <div className="absolute bottom-4 right-4 z-20">
+      <div className="absolute bottom-4 right-4 z-20" style={{display: 'none'}}>
         <Button 
           variant="secondary" 
           size="sm" 

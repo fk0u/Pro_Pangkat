@@ -1,62 +1,11 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { 
-  ClipboardList, 
-  Info, 
-  Loader2, 
-  RefreshCw, 
-  Search, 
-  Filter,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  User,
-  FileText,
-  Clock,
-  Download,
-  FileDown
-} from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useToast } from "@/hooks/use-toast"
-import { motion } from "framer-motion"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { DateRangePicker } from "@/components/date-range-picker"
-import { DateRange } from "react-day-picker"
-import { addDays, format, subDays } from "date-fns"
-import { id } from "date-fns/locale"
+import { Diff, Hunk } from 'react-diff-view'
+import 'react-diff-view/style/index.css'
 
 interface ActivityLog {
   id: string;
   action: string;
   details: any;
+  diff: any;
   createdAt: string;
   userId: string;
   user?: {
@@ -65,6 +14,47 @@ interface ActivityLog {
     email: string;
     role: string;
   } | null;
+}
+
+function DiffModal({ isOpen, onClose, diff, log }) {
+  if (!isOpen || !diff) return null
+
+  const files = [{
+    type: 'modify',
+    oldPath: 'before',
+    newPath: 'after',
+    hunks: diff.map(d => ({
+      oldStartLine: 1,
+      oldLines: 1,
+      newStartLine: 1,
+      newLines: 1,
+      content: `@@ -1,1 +1,1 @@`,
+      changes: [{
+        type: 'normal',
+        content: `Path: ${d.path.join('.')}`,
+      }, {
+        type: 'delete',
+        content: `Before: ${JSON.stringify(d.lhs)}`,
+      }, {
+        type: 'add',
+        content: `After: ${JSON.stringify(d.rhs)}`,
+      }]
+    })),
+  }]
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+      <div className="bg-white rounded-lg p-6 w-11/12 max-w-4xl">
+        <h2 className="text-xl font-bold mb-4">Perubahan Data</h2>
+        <div className="max-h-[70vh] overflow-y-auto">
+          <Diff viewType="split" diffType="modify" hunks={files[0].hunks}>
+            {hunks => hunks.map(hunk => <Hunk key={hunk.content} hunk={hunk} />)}
+          </Diff>
+        </div>
+        <Button onClick={onClose} className="mt-4">Tutup</Button>
+      </div>
+    </div>
+  )
 }
 
 export default function ActivityLogPage() {
@@ -83,7 +73,19 @@ export default function ActivityLogPage() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
   const [roleFilter, setRoleFilter] = useState<string | null>(null)
+  const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null)
+  const [isDiffModalOpen, setIsDiffModalOpen] = useState(false)
   const itemsPerPage = 20
+
+  const openDiffModal = (log: ActivityLog) => {
+    setSelectedLog(log)
+    setIsDiffModalOpen(true)
+  }
+
+  const closeDiffModal = () => {
+    setSelectedLog(null)
+    setIsDiffModalOpen(false)
+  }
 
   useEffect(() => {
     fetchLogs()
@@ -645,6 +647,7 @@ export default function ActivityLogPage() {
                         <TableHead className="w-[140px]">Aksi</TableHead>
                         <TableHead className="w-[140px]">Pengguna</TableHead>
                         <TableHead>Detail</TableHead>
+                        <TableHead className="w-[100px]">Changes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -686,6 +689,13 @@ export default function ActivityLogPage() {
                             <TableCell>
                               <div className="text-sm">{renderActionDetails(log)}</div>
                             </TableCell>
+                            <TableCell>
+                              {log.diff && (
+                                <Button variant="outline" size="sm" onClick={() => openDiffModal(log)}>
+                                  Lihat Perubahan
+                                </Button>
+                              )}
+                            </TableCell>
                           </TableRow>
                         )
                       })}
@@ -726,6 +736,7 @@ export default function ActivityLogPage() {
             )}
           </CardContent>
         </Card>
+        <DiffModal isOpen={isDiffModalOpen} onClose={closeDiffModal} diff={selectedLog?.diff} log={selectedLog} />
       </div>
     </DashboardLayout>
   )

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { readFile } from "fs/promises"
 import { join } from "path"
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
 
 export async function GET(
   request: NextRequest,
@@ -22,7 +23,7 @@ export async function GET(
         proposal: {
           include: {
             pegawai: {
-              select: { id: true }
+              select: { id: true, name: true, nip: true }
             }
           }
         }
@@ -59,6 +60,23 @@ export async function GET(
       
       if (extension === 'pdf') {
         contentType = 'application/pdf'
+        const pdfDoc = await PDFDocument.load(fileBuffer)
+        const pages = pdfDoc.getPages()
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+        const text = `Diakses oleh: ${document.proposal.pegawai.name} (${document.proposal.pegawai.nip}) pada ${new Date().toLocaleString()}`
+        
+        for (const page of pages) {
+          const { width, height } = page.getSize()
+          page.drawText(text, {
+            x: 5,
+            y: height - 15,
+            font,
+            size: 8,
+            color: rgb(0.5, 0.5, 0.5),
+          })
+        }
+        
+        fileBuffer = await pdfDoc.save()
       } else if (['jpg', 'jpeg'].includes(extension || '')) {
         contentType = 'image/jpeg'
       } else if (extension === 'png') {

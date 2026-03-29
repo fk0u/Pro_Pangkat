@@ -13,6 +13,8 @@ function base64UrlDecode(value: string) {
   return Buffer.from(value, "base64url").toString("utf8")
 }
 
+import { generateCaptchaImage } from "./captcha-image"
+
 function signCaptcha(answer: string, nonce: string, expiresAt: number) {
   return crypto
     .createHmac("sha256", CAPTCHA_SECRET)
@@ -26,8 +28,10 @@ export function issueCaptchaToken(answer: string) {
   const payloadRaw = JSON.stringify({ nonce, expiresAt })
   const payload = base64UrlEncode(payloadRaw)
   const signature = signCaptcha(answer, nonce, expiresAt)
+  const token = `${payload}.${signature}`
+  const image = generateCaptchaImage(answer)
 
-  return `${payload}.${signature}`
+  return { token, image }
 }
 
 function constantTimeEqual(a: string, b: string) {

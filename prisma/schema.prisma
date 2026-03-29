@@ -101,6 +101,7 @@ model ActivityLog {
   id        String   @id @default(cuid())
   action    String
   details   Json?
+  diff      Json?
   userId    String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])

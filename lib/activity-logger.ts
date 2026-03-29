@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { Session } from "@/lib/auth"
+import { diff } from "deep-diff"
 
 /**
  * Logs user activity in the system
@@ -24,11 +25,17 @@ export async function logActivity(
       console.warn('Activity log created without user ID:', { action, details })
     }
     
+    let diffData = null
+    if (details.before && details.after) {
+      diffData = diff(details.before, details.after)
+    }
+
     // Create the activity log entry
     const log = await prisma.activityLog.create({
       data: {
         action,
         details,
+        diff: diffData,
         userId: userIdToUse
       }
     })
